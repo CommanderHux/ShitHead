@@ -129,6 +129,16 @@ p {
   margin-top: 4px;
 }
 
+.join-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.join-actions button {
+  flex: 1 1 220px;
+}
+
 .control-panel {
   display: flex;
   gap: 12px;
@@ -247,7 +257,8 @@ canvas {
   }
 
   #return-to-selection,
-  #enter-room {
+  #enter-room,
+  #offline-game {
     width: 100%;
   }
 

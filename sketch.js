@@ -17,10 +17,12 @@ const INITIAL_HAND_SIZE = 3;
 const CARDS_PER_PLAYER = INITIAL_HAND_SIZE * 3;
 const BOT_ACTION_DELAY_MS = 1600;
 const BOT_TURN_HANDOFF_DELAY_MS = 300;
+const OFFLINE_AI_COUNT = 3;
 
 let shared;
 let me;
 let guests;
+let isOfflineMode = false;
 
 let playerName = "";
 let roomName = "";
@@ -41,7 +43,7 @@ let drawDeck;
 /** @type {p_Deck} */
 let discard;
 
-/** @type {{setupScreen: HTMLElement | null, playScreen: HTMLElement | null, canvasShell: HTMLElement | null, roomLabel: HTMLElement | null, statusLabel: HTMLElement | null, playStatusLabel: HTMLElement | null, hostLabel: HTMLElement | null, returnButton: HTMLButtonElement | null, addAiButton: HTMLButtonElement | null, startButton: HTMLButtonElement | null, resetButton: HTMLButtonElement | null, finishSwapButton: HTMLButtonElement | null, playSelectedButton: HTMLButtonElement | null, pickupDiscardButton: HTMLButtonElement | null}} */
+/** @type {{setupScreen: HTMLElement | null, playScreen: HTMLElement | null, canvasShell: HTMLElement | null, roomLabel: HTMLElement | null, statusLabel: HTMLElement | null, playStatusLabel: HTMLElement | null, hostLabel: HTMLElement | null, returnButton: HTMLButtonElement | null, offlineButton: HTMLButtonElement | null, addAiButton: HTMLButtonElement | null, removeAiButton: HTMLButtonElement | null, startButton: HTMLButtonElement | null, resetButton: HTMLButtonElement | null, finishSwapButton: HTMLButtonElement | null, playSelectedButton: HTMLButtonElement | null, pickupDiscardButton: HTMLButtonElement | null}} */
 let ui = {
   setupScreen: null,
   playScreen: null,
@@ -51,7 +53,9 @@ let ui = {
   playStatusLabel: null,
   hostLabel: null,
   returnButton: null,
+  offlineButton: null,
   addAiButton: null,
+  removeAiButton: null,
   startButton: null,
   resetButton: null,
   finishSwapButton: null,
@@ -62,43 +66,80 @@ let ui = {
 function preload() {}
 
 async function initGame() {
-  let { roomID, nameID } = await readRoomName();
+  let { roomID, nameID, mode } = await readRoomName();
   roomName = roomID;
   playerName = nameID;
   playerToken = createPlayerToken();
   playRules = await loadPlayRules();
   setScreenMode("play");
 
-  partyConnect(SERVER_URL, APP_NAME, roomName);
+  isOfflineMode = mode === "offline";
 
-  shared = partyLoadShared("globals", {
-    /** @type {n_Deck} */ draw: [],
-    /** @type {p_Deck} */ discard: [],
-    bots: [],
-    hostToken: "",
-    hostName: "",
-    phase: "lobby",
-    roundVersion: 0,
-    playerOrder: [],
-    currentPlayerToken: "",
-    deckOrder: [],
-    statusText: "Waiting for host to start the party.",
-  });
+  if (isOfflineMode) {
+    initOfflineGame();
+  } else {
+    partyConnect(SERVER_URL, APP_NAME, roomName);
 
-  me = partyLoadMyShared({
-    token: playerToken,
-    name: playerName,
-    syncedRoundVersion: -1,
-    swapReady: false,
-    hand: createEmptyHand(),
-  });
+    shared = partyLoadShared("globals", {
+      /** @type {n_Deck} */ draw: [],
+      /** @type {p_Deck} */ discard: [],
+      bots: [],
+      hostToken: "",
+      hostName: "",
+      phase: "lobby",
+      roundVersion: 0,
+      playerOrder: [],
+      currentPlayerToken: "",
+      deckOrder: [],
+      statusText: "Waiting for host to start the party.",
+    });
 
-  guests = partyLoadGuestShareds();
+    me = partyLoadMyShared({
+      token: playerToken,
+      name: playerName,
+      syncedRoundVersion: -1,
+      swapReady: false,
+      hand: createEmptyHand(),
+    });
+
+    guests = partyLoadGuestShareds();
+  }
+
   drawDeck = shared.draw;
   discard = shared.discard;
 
   ensureHostClaimed();
   updateUi();
+}
+
+function initOfflineGame() {
+  roomName = "Offline Table";
+  shared = {
+    draw: [],
+    discard: [],
+    bots: [],
+    hostToken: playerToken,
+    hostName: playerName,
+    phase: "lobby",
+    roundVersion: 0,
+    playerOrder: [],
+    currentPlayerToken: playerToken,
+    deckOrder: [],
+    statusText: "Offline table ready. Deal when you are ready.",
+  };
+
+  me = {
+    token: playerToken,
+    name: playerName,
+    syncedRoundVersion: -1,
+    swapReady: false,
+    hand: createEmptyHand(),
+  };
+
+  guests = [];
+  for (let index = 1; index <= OFFLINE_AI_COUNT; index += 1) {
+    shared.bots.push(createAiPlayer(index));
+  }
 }
 
 function setup() {
@@ -113,7 +154,9 @@ function setup() {
   ui.playStatusLabel = document.getElementById("play-status-label");
   ui.hostLabel = document.getElementById("host-label");
   ui.returnButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("return-to-selection"));
+  ui.offlineButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("offline-game"));
   ui.addAiButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("add-ai-player"));
+  ui.removeAiButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("remove-ai-player"));
   ui.startButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("start-party"));
   ui.resetButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("reset-party"));
   ui.finishSwapButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("finish-swap"));
@@ -141,6 +184,9 @@ function setup() {
   if (ui.addAiButton) {
     ui.addAiButton.addEventListener("click", addAiPlayerAsHost);
   }
+  if (ui.removeAiButton) {
+    ui.removeAiButton.addEventListener("click", removeAiPlayerAsHost);
+  }
 
   updateUi();
 
@@ -154,8 +200,7 @@ function setup() {
  * @param {string} message
  */
 function pushDebugTrace(message) {
-  let timeLabel = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  console.log(`[AI TRACE ${timeLabel}] ${message}`);
+  void message;
 }
 
 function draw() {
@@ -464,7 +509,7 @@ function ensureHostClaimed() {
     return;
   }
 
-  if (partyIsHost() && (shared.hostToken !== me.token || shared.hostName !== me.name)) {
+  if (isHostPlayer() && (shared.hostToken !== me.token || shared.hostName !== me.name)) {
     shared.hostToken = me.token;
     shared.hostName = me.name;
     if (!shared.currentPlayerToken) {
@@ -478,7 +523,7 @@ function ensureHostClaimed() {
 
 /** @returns {boolean} */
 function isHostPlayer() {
-  return Boolean(shared && me && partyIsHost());
+  return Boolean(shared && me && (isOfflineMode || partyIsHost()));
 }
 
 /** @returns {PlayerState[]} */
@@ -990,6 +1035,31 @@ function addAiPlayerAsHost() {
   let aiCount = getSharedBots().length + 1;
   shared.bots.push(createAiPlayer(aiCount));
   shared.statusText = `Added AI ${aiCount} to the table.`;
+  updateUi();
+}
+
+function removeAiPlayerAsHost() {
+  if (!shared || !isHostPlayer()) {
+    statusMessage = "Only the host can remove AI players.";
+    updateUi();
+    return;
+  }
+  if (shared.phase !== "lobby") {
+    statusMessage = "Remove AI players before dealing a round.";
+    updateUi();
+    return;
+  }
+
+  normalizeSharedState();
+  let bots = getSharedBots();
+  if (bots.length === 0) {
+    statusMessage = "There are no AI players to remove.";
+    updateUi();
+    return;
+  }
+
+  let removedBot = bots.pop();
+  shared.statusText = `${removedBot?.name || "An AI player"} left the table.`;
   updateUi();
 }
 
@@ -1829,7 +1899,7 @@ function getHostName() {
   if (typeof shared.hostName === "string" && shared.hostName.length > 0) {
     return shared.hostName;
   }
-  if (partyIsHost() && me && typeof me.name === "string" && me.name.length > 0) {
+  if (isHostPlayer() && me && typeof me.name === "string" && me.name.length > 0) {
     return me.name;
   }
   return "Syncing...";
@@ -1900,6 +1970,13 @@ function updateUi() {
   if (ui.addAiButton) {
     ui.addAiButton.disabled = controlsDisabled || !isHostPlayer() || shared?.phase !== "lobby";
   }
+  if (ui.removeAiButton) {
+    ui.removeAiButton.disabled =
+      controlsDisabled ||
+      !isHostPlayer() ||
+      shared?.phase !== "lobby" ||
+      getSharedBots().length === 0;
+  }
   if (ui.resetButton) {
     ui.resetButton.disabled = controlsDisabled || !isHostPlayer();
   }
@@ -1922,37 +1999,51 @@ function updateUi() {
   }
 }
 
-/** @returns {Promise<{roomID: string, nameID: string}>} */
+/** @returns {Promise<{roomID: string, nameID: string, mode: "online" | "offline"}>} */
 async function readRoomName() {
   let roomID = "";
   let nameID = "";
+  /** @type {"online" | "offline"} */
+  let mode = "online";
 
   await new Promise((resolve) => {
     let room = /** @type {HTMLInputElement | null} */ (document.getElementById("room"));
     let name = /** @type {HTMLInputElement | null} */ (document.getElementById("name"));
     let enterButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("enter-room"));
+    let offlineButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("offline-game"));
 
-    if (!room || !name || !enterButton) {
+    if (!room || !name || !enterButton || !offlineButton) {
       resolve(undefined);
       return;
     }
 
-    let submit = () => {
-      roomID = room.value.trim();
+    /**
+     * @param {"online" | "offline"} nextMode
+     */
+    let submit = (nextMode) => {
+      mode = nextMode;
+      roomID = nextMode === "offline" ? "Offline Table" : room.value.trim();
       nameID = name.value.trim();
-      if (roomID && nameID) {
-        enterButton.removeEventListener("click", submit);
+      if (nameID && (nextMode === "offline" || roomID)) {
+        enterButton.removeEventListener("click", startOnline);
+        offlineButton.removeEventListener("click", startOffline);
         room.removeEventListener("keydown", handleKeyDown);
         name.removeEventListener("keydown", handleKeyDown);
         room.disabled = true;
         name.disabled = true;
         enterButton.disabled = true;
+        offlineButton.disabled = true;
         resolve(undefined);
       } else {
-        statusMessage = "Please enter both a room key and username.";
+        statusMessage = nextMode === "offline"
+          ? "Please enter a username for the offline game."
+          : "Please enter both a room key and username.";
         updateUi();
       }
     };
+
+    let startOnline = () => submit("online");
+    let startOffline = () => submit("offline");
 
     /**
      * @param {KeyboardEvent} event
@@ -1960,14 +2051,15 @@ async function readRoomName() {
     let handleKeyDown = (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        submit();
+        startOnline();
       }
     };
 
-    enterButton.addEventListener("click", submit);
+    enterButton.addEventListener("click", startOnline);
+    offlineButton.addEventListener("click", startOffline);
     room.addEventListener("keydown", handleKeyDown);
     name.addEventListener("keydown", handleKeyDown);
   });
 
-  return { roomID, nameID };
+  return { roomID, nameID, mode };
 }
