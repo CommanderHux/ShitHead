@@ -351,7 +351,7 @@ function drawWrappedPlayRow(x, y, cards, faceUp, selectedIndices = null) {
 }
 
 /**
- * @param {{name: string, isHost: boolean, isSelf: boolean, isCurrentTurn: boolean, activeZone: "play" | "up" | "down" | null, down: number[], up: number[], play: number[]}} player
+ * @param {{name: string, isHost: boolean, isSelf: boolean, isBot: boolean, isCurrentTurn: boolean, activeZone: "play" | "up" | "down" | null, down: number[], up: number[], play: number[]}} player
  * @param {number} x
  * @param {number} y
  * @param {number} boxW
@@ -377,6 +377,10 @@ function drawPlayerPanel(player, x, y, boxW, boxH, selectedSwap = null, selected
   text(player.name, x + 16, y + 14);
 
   let badgeX = x + 16 + textWidth(player.name) + 12;
+  if (player.isBot) {
+    drawBadge(badgeX, y + 13, "AI", "#355b91", "#eef6ff");
+    badgeX += 38;
+  }
   if (player.isHost) {
     drawBadge(badgeX, y + 13, "Dealer", "#c9a34d", "#fff8ea");
     badgeX += 60;
@@ -432,7 +436,7 @@ function drawPlayerPanel(player, x, y, boxW, boxH, selectedSwap = null, selected
 }
 
 /**
- * @param {{name: string, isHost: boolean, isSelf: boolean, isCurrentTurn: boolean, activeZone: "play" | "up" | "down" | null, down: number[], up: number[], play: number[]}[]} players
+ * @param {{name: string, isHost: boolean, isSelf: boolean, isBot: boolean, isCurrentTurn: boolean, activeZone: "play" | "up" | "down" | null, down: number[], up: number[], play: number[]}[]} players
  * @param {{roomName: string, phase: string, drawCount: number, discardCount: number, discardTop: number | null, statusText: string, hostName: string, currentTurnName: string, isHost: boolean, selectedSwap: {zone: "up" | "play", index: number} | null, selectedPlayIndices: number[]}} tableState
  */
 function renderShitheadTable(players, tableState) {

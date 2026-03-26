@@ -6,7 +6,7 @@
  * n_Deck is a negative deck, if x :- n_Deck, it does not exist in that deck
  * @typedef {number[]} n_Deck
  * @typedef {{up: p_Deck, down: p_Deck, play: p_Deck}} PlayerHand
- * @typedef {{token: string, name: string, hand: PlayerHand}} PlayerState
+ * @typedef {{token: string, name: string, hand: PlayerHand, isBot?: boolean, swapReady?: boolean}} PlayerState
  */
 
 const SERVER_URL = "wss://demoserver.p5party.org";
@@ -15,6 +15,8 @@ const RULES_URL = "play-rules.json";
 const TOTAL_CARDS = 52;
 const INITIAL_HAND_SIZE = 3;
 const CARDS_PER_PLAYER = INITIAL_HAND_SIZE * 3;
+const BOT_ACTION_DELAY_MS = 1600;
+const BOT_TURN_HANDOFF_DELAY_MS = 300;
 
 let shared;
 let me;
@@ -25,18 +27,21 @@ let roomName = "";
 let playerToken = "";
 let lastAppliedVersion = -1;
 let statusMessage = "Waiting for room details...";
+let localStatusMessage = "";
+let localStatusExpiresAt = 0;
 /** @type {{zone: "up" | "play", index: number} | null} */
 let selectedSwap = null;
 /** @type {number[]} */
-let selectedPlayIndices = [];
+let selectedPlayCardIDs = [];
 let playRules = createDefaultPlayRules();
+let lastBotActionAt = 0;
 
 /** @type {n_Deck} */
 let drawDeck;
 /** @type {p_Deck} */
 let discard;
 
-/** @type {{setupScreen: HTMLElement | null, playScreen: HTMLElement | null, canvasShell: HTMLElement | null, roomLabel: HTMLElement | null, statusLabel: HTMLElement | null, playStatusLabel: HTMLElement | null, hostLabel: HTMLElement | null, returnButton: HTMLButtonElement | null, startButton: HTMLButtonElement | null, resetButton: HTMLButtonElement | null, finishSwapButton: HTMLButtonElement | null, playSelectedButton: HTMLButtonElement | null, pickupDiscardButton: HTMLButtonElement | null}} */
+/** @type {{setupScreen: HTMLElement | null, playScreen: HTMLElement | null, canvasShell: HTMLElement | null, roomLabel: HTMLElement | null, statusLabel: HTMLElement | null, playStatusLabel: HTMLElement | null, hostLabel: HTMLElement | null, returnButton: HTMLButtonElement | null, addAiButton: HTMLButtonElement | null, startButton: HTMLButtonElement | null, resetButton: HTMLButtonElement | null, finishSwapButton: HTMLButtonElement | null, playSelectedButton: HTMLButtonElement | null, pickupDiscardButton: HTMLButtonElement | null}} */
 let ui = {
   setupScreen: null,
   playScreen: null,
@@ -46,6 +51,7 @@ let ui = {
   playStatusLabel: null,
   hostLabel: null,
   returnButton: null,
+  addAiButton: null,
   startButton: null,
   resetButton: null,
   finishSwapButton: null,
@@ -68,6 +74,7 @@ async function initGame() {
   shared = partyLoadShared("globals", {
     /** @type {n_Deck} */ draw: [],
     /** @type {p_Deck} */ discard: [],
+    bots: [],
     hostToken: "",
     hostName: "",
     phase: "lobby",
@@ -106,6 +113,7 @@ function setup() {
   ui.playStatusLabel = document.getElementById("play-status-label");
   ui.hostLabel = document.getElementById("host-label");
   ui.returnButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("return-to-selection"));
+  ui.addAiButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("add-ai-player"));
   ui.startButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("start-party"));
   ui.resetButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("reset-party"));
   ui.finishSwapButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("finish-swap"));
@@ -130,6 +138,9 @@ function setup() {
   if (ui.returnButton) {
     ui.returnButton.addEventListener("click", returnToSelection);
   }
+  if (ui.addAiButton) {
+    ui.addAiButton.addEventListener("click", addAiPlayerAsHost);
+  }
 
   updateUi();
 
@@ -137,6 +148,14 @@ function setup() {
     statusMessage = `Setup error: ${error instanceof Error ? error.message : String(error)}`;
     updateUi();
   });
+}
+
+/**
+ * @param {string} message
+ */
+function pushDebugTrace(message) {
+  let timeLabel = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  console.log(`[AI TRACE ${timeLabel}] ${message}`);
 }
 
 function draw() {
@@ -151,8 +170,9 @@ function draw() {
   normalizeSharedState();
   ensureHostClaimed();
   syncLocalHandWithRound();
+  maybeRunBotAutomation();
   maybeAdvanceSwapPhase();
-  if (isPlayPhase() && !isCurrentPlayersTurn() && selectedPlayIndices.length > 0) {
+  if (isPlayPhase() && !isCurrentPlayersTurn() && selectedPlayCardIDs.length > 0) {
     clearPlaySelection();
   }
   updateUi();
@@ -173,7 +193,7 @@ function draw() {
       currentTurnName: getCurrentTurnName(),
       isHost: isHostPlayer(),
       selectedSwap,
-      selectedPlayIndices,
+      selectedPlayIndices: getSelectedIndicesForActiveZone(),
     }
   );
 }
@@ -192,6 +212,15 @@ function setScreenMode(mode) {
 
 function returnToSelection() {
   window.location.reload();
+}
+
+/**
+ * @param {string} message
+ * @param {number} durationMs
+ */
+function setLocalStatus(message, durationMs = 2600) {
+  localStatusMessage = message;
+  localStatusExpiresAt = millis() + durationMs;
 }
 
 /**
@@ -357,10 +386,22 @@ function normalizeSharedState() {
 
   shared.draw = deckToArray(shared.draw);
   shared.discard = deckToArray(shared.discard);
+  shared.bots = Array.isArray(shared.bots) ? shared.bots : Object.values(shared.bots || {});
   shared.playerOrder = Array.isArray(shared.playerOrder) ? shared.playerOrder : Object.values(shared.playerOrder || {});
   shared.deckOrder = deckToArray(shared.deckOrder);
   shared.phase = typeof shared.phase === "string" ? shared.phase : "lobby";
   normalizeHand(me.hand);
+
+  for (let bot of shared.bots) {
+    if (!bot) {
+      continue;
+    }
+    bot.token = typeof bot.token === "string" ? bot.token : "";
+    bot.name = typeof bot.name === "string" && bot.name.length > 0 ? bot.name : "AI";
+    bot.swapReady = Boolean(bot.swapReady);
+    bot.hand = bot.hand || createEmptyHand();
+    normalizeHand(bot.hand);
+  }
 
   if (!Array.isArray(guests)) {
     return;
@@ -372,6 +413,42 @@ function normalizeSharedState() {
     }
     normalizeHand(guest.hand);
   }
+}
+
+/** @returns {PlayerState[]} */
+function getSharedBots() {
+  if (!shared) {
+    return [];
+  }
+  normalizeSharedState();
+  return Array.isArray(shared.bots) ? shared.bots : [];
+}
+
+/**
+ * @param {string} token
+ * @returns {PlayerState | null}
+ */
+function getBotByToken(token) {
+  return getSharedBots().find((bot) => bot.token === token) || null;
+}
+
+/** @returns {string} */
+function createBotToken() {
+  return `bot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * @param {number} index
+ * @returns {PlayerState}
+ */
+function createAiPlayer(index) {
+  return {
+    token: createBotToken(),
+    name: `AI ${index}`,
+    isBot: true,
+    swapReady: false,
+    hand: createEmptyHand(),
+  };
 }
 
 function ensureHostClaimed() {
@@ -433,6 +510,13 @@ function getConnectedPlayers() {
   }
 
   if (!Array.isArray(guests)) {
+    let bots = getSharedBots();
+    for (let bot of bots) {
+      if (!bot.token || !bot.hand) {
+        continue;
+      }
+      addPlayer({ token: bot.token, name: bot.name, hand: bot.hand, isBot: true, swapReady: bot.swapReady });
+    }
     return Array.from(playersByToken.values());
   }
 
@@ -444,6 +528,19 @@ function getConnectedPlayers() {
       token: guest.token,
       name: typeof guest.name === "string" && guest.name.length > 0 ? guest.name : "Guest",
       hand: guest.hand,
+    });
+  }
+
+  for (let bot of getSharedBots()) {
+    if (!bot || typeof bot.token !== "string" || bot.token.length === 0 || !bot.hand) {
+      continue;
+    }
+    addPlayer({
+      token: bot.token,
+      name: bot.name,
+      hand: bot.hand,
+      isBot: true,
+      swapReady: bot.swapReady,
     });
   }
 
@@ -470,7 +567,7 @@ function isCurrentPlayersTurn() {
 /** @returns {boolean} */
 function allPlayersReadyToPlay() {
   let players = getConnectedPlayers();
-  if (players.length === 0 || !Array.isArray(guests)) {
+  if (players.length === 0) {
     return Boolean(me?.swapReady);
   }
 
@@ -487,6 +584,12 @@ function allPlayersReadyToPlay() {
     }
   }
 
+  for (let bot of getSharedBots()) {
+    if (!bot.swapReady) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -494,19 +597,7 @@ function allPlayersReadyToPlay() {
  * @returns {"play" | "up" | "down" | null}
  */
 function getActiveTurnZone() {
-  if (!me?.hand) {
-    return null;
-  }
-  if (me.hand.play.length > 0) {
-    return "play";
-  }
-  if (me.hand.up.length > 0) {
-    return "up";
-  }
-  if (me.hand.down.length > 0) {
-    return "down";
-  }
-  return null;
+  return me?.hand ? getActiveZoneForHand(me.hand) : null;
 }
 
 /**
@@ -517,16 +608,7 @@ function getPlayableIndicesForZone(zone) {
   if (!me?.hand?.[zone]) {
     return [];
   }
-
-  /** @type {number[]} */
-  let playable = [];
-  for (let index = 0; index < me.hand[zone].length; index += 1) {
-    let cardID = me.hand[zone][index];
-    if (canPlayCardOnDiscard(cardID).ok) {
-      playable.push(index);
-    }
-  }
-  return playable;
+  return getPlayableIndicesForHand(me.hand, me.token, zone);
 }
 
 /** @returns {boolean} */
@@ -760,15 +842,7 @@ function shouldClearDiscardPile(cardID) {
  * @returns {{ok: boolean, reason: string}}
  */
 function canPlayCardOnDiscard(cardID) {
-  if (!isCurrentPlayersTurn()) {
-    return { ok: false, reason: "It is not your turn." };
-  }
-
-  if (!evaluateRule(cardID)) {
-    return { ok: false, reason: "Rule check failed." };
-  }
-
-  return { ok: true, reason: "" };
+  return me ? canPlayerTokenPlayCardOnDiscard(me.token, cardID) : { ok: false, reason: "Player unavailable." };
 }
 
 function resetSharedState() {
@@ -784,6 +858,10 @@ function resetSharedState() {
   shared.phase = "lobby";
   shared.hostName = getHostName();
   shared.statusText = "Waiting for host to start the party.";
+  for (let bot of getSharedBots()) {
+    clearHand(bot.hand);
+    bot.swapReady = false;
+  }
   selectedSwap = null;
   clearPlaySelection();
 }
@@ -863,6 +941,11 @@ function syncLocalHandWithRound() {
 
   if (shared.phase === "swap" || shared.phase === "play") {
     applyRoundCardsToMe();
+    if (isHostPlayer()) {
+      for (let bot of getSharedBots()) {
+        applyRoundCardsToBot(bot);
+      }
+    }
   }
 
   me.syncedRoundVersion = shared.roundVersion;
@@ -891,6 +974,412 @@ function lockSwapPhase() {
   updateUi();
 }
 
+function addAiPlayerAsHost() {
+  if (!shared || !isHostPlayer()) {
+    statusMessage = "Only the host can add AI players.";
+    updateUi();
+    return;
+  }
+  if (shared.phase !== "lobby") {
+    statusMessage = "Add AI players before dealing a round.";
+    updateUi();
+    return;
+  }
+
+  normalizeSharedState();
+  let aiCount = getSharedBots().length + 1;
+  shared.bots.push(createAiPlayer(aiCount));
+  shared.statusText = `Added AI ${aiCount} to the table.`;
+  updateUi();
+}
+
+/**
+ * @param {PlayerHand} hand
+ * @returns {"play" | "up" | "down" | null}
+ */
+function getActiveZoneForHand(hand) {
+  if (hand.play.length > 0) {
+    return "play";
+  }
+  if (hand.up.length > 0) {
+    return "up";
+  }
+  if (hand.down.length > 0) {
+    return "down";
+  }
+  return null;
+}
+
+/**
+ * @param {number | null} cardID
+ * @returns {string}
+ */
+function describeCard(cardID) {
+  if (cardID == null || !isValidCardID(cardID)) {
+    return "none";
+  }
+
+  let card = loadCard(cardID);
+  let ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+  let suits = ["C", "D", "H", "S"];
+  return `${ranks[card.value]}${suits[card.suit]}(${cardID})`;
+}
+
+/**
+ * @param {string} token
+ * @param {number} cardID
+ * @returns {{ok: boolean, reason: string}}
+ */
+function canPlayerTokenPlayCardOnDiscard(token, cardID) {
+  if (!shared || shared.currentPlayerToken !== token) {
+    return { ok: false, reason: "It is not this player's turn." };
+  }
+
+  if (!evaluateRule(cardID)) {
+    return {
+      ok: false,
+      reason: `Rule check failed: tried ${describeCard(cardID)} on ${describeCard(getTopDiscardCard())}.`,
+    };
+  }
+
+  return { ok: true, reason: "" };
+}
+
+/**
+ * @param {PlayerHand} hand
+ * @param {string} token
+ * @param {"play" | "up" | "down"} zone
+ * @returns {number[]}
+ */
+function getPlayableIndicesForHand(hand, token, zone) {
+  /** @type {number[]} */
+  let playable = [];
+  for (let index = 0; index < hand[zone].length; index += 1) {
+    if (canPlayerTokenPlayCardOnDiscard(token, hand[zone][index]).ok) {
+      playable.push(index);
+    }
+  }
+  return playable;
+}
+
+/**
+ * @param {PlayerHand} hand
+ */
+function chooseSwapLayoutForAi(hand) {
+  let combined = [...hand.up, ...hand.play].sort((left, right) => {
+    let leftCard = loadCard(left);
+    let rightCard = loadCard(right);
+    if (leftCard.value !== rightCard.value) {
+      return leftCard.value - rightCard.value;
+    }
+    if (leftCard.suit !== rightCard.suit) {
+      return leftCard.suit - rightCard.suit;
+    }
+    return left - right;
+  });
+
+  hand.play = combined.slice(0, INITIAL_HAND_SIZE);
+  hand.up = combined.slice(INITIAL_HAND_SIZE);
+}
+
+/**
+ * @param {PlayerState} bot
+ * @returns {{zone: "play" | "up" | "down" | null, cardIDs: number[]}}
+ */
+function chooseBotAction(bot) {
+  let zone = getActiveZoneForHand(bot.hand);
+  if (!zone) {
+    return { zone: null, cardIDs: [] };
+  }
+
+  if (zone === "down") {
+    return { zone, cardIDs: bot.hand.down.length > 0 ? [bot.hand.down[0]] : [] };
+  }
+
+  let playableIndices = getPlayableIndicesForHand(bot.hand, bot.token, zone);
+  if (playableIndices.length === 0) {
+    return { zone, cardIDs: [] };
+  }
+
+  let chosenIndex = [...playableIndices].sort((leftIndex, rightIndex) => {
+    let leftCardID = bot.hand[zone][leftIndex];
+    let rightCardID = bot.hand[zone][rightIndex];
+    let leftScore = getAiPlayPreferenceScore(leftCardID);
+    let rightScore = getAiPlayPreferenceScore(rightCardID);
+
+    if (leftScore !== rightScore) {
+      return leftScore - rightScore;
+    }
+
+    let leftCard = loadCard(leftCardID);
+    let rightCard = loadCard(rightCardID);
+
+    if (leftCard.value !== rightCard.value) {
+      return leftCard.value - rightCard.value;
+    }
+
+    if (leftCard.suit !== rightCard.suit) {
+      return leftCard.suit - rightCard.suit;
+    }
+
+    return leftCardID - rightCardID;
+  })[0];
+  let chosenValue = loadCard(bot.hand[zone][chosenIndex]).value;
+  let matching = playableIndices
+    .filter((index) => loadCard(bot.hand[zone][index]).value === chosenValue)
+    .map((index) => bot.hand[zone][index]);
+  return { zone, cardIDs: matching };
+}
+
+/**
+ * Lower score means "play this sooner".
+ * Value mapping is 0=2, 5=7, 8=10.
+ * @param {number} cardID
+ * @returns {number}
+ */
+function getAiPlayPreferenceScore(cardID) {
+  let { value } = loadCard(cardID);
+
+  if (value === 5) {
+    return 4.5;
+  }
+  if (value === 0) {
+    return 30;
+  }
+  if (value === 8) {
+    return 40;
+  }
+  if (value < 5) {
+    return 10 + value;
+  }
+
+  return value;
+}
+
+/**
+ * @param {string} token
+ * @param {string} name
+ * @param {PlayerHand} hand
+ * @param {"play" | "up" | "down"} activeZone
+ * @param {number[]} selectedCardIDs
+ * @returns {boolean}
+ */
+function executeSelectedCards(token, name, hand, activeZone, selectedCardIDs) {
+  normalizeHand(hand);
+  let activeDeck = hand[activeZone];
+  let selectedCards = selectedCardIDs.filter((cardID) =>
+    isValidCardID(cardID) && activeDeck.includes(cardID)
+  );
+  let safeSelection = selectedCards
+    .map((cardID) => activeDeck.indexOf(cardID))
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right);
+  pushDebugTrace(`${name} play attempt zone=${activeZone} cardIDs=[${selectedCardIDs.join(",")}] indices=[${safeSelection.join(",")}] cards=[${selectedCards.join(",")}] discard=${deckSize(shared?.discard || [])} turn=${shared?.currentPlayerToken || "-"}`);
+
+  if (safeSelection.length === 0 || selectedCards.length === 0) {
+    pushDebugTrace(`${name} play aborted invalid-selection zone=${activeZone} hand=[${activeDeck.join(",")}]`);
+    return false;
+  }
+
+  if (activeZone === "down" && safeSelection.length > 1) {
+    pushDebugTrace(`${name} play aborted down-multi-selection indices=[${safeSelection.join(",")}]`);
+    return false;
+  }
+
+  if (activeZone !== "down") {
+    let firstValue = loadCard(selectedCards[0]).value;
+    let sameValue = selectedCards.every((cardID) => loadCard(cardID).value === firstValue);
+    if (!sameValue) {
+      pushDebugTrace(`${name} play aborted mixed-values cards=[${selectedCards.join(",")}]`);
+      return false;
+    }
+  }
+
+  let validation = canPlayerTokenPlayCardOnDiscard(token, selectedCards[0]);
+
+  if (!validation.ok) {
+    pushDebugTrace(`${name} play rejected reason="${validation.reason}"`);
+    let cardsToPickUp = [...safeSelection].sort((left, right) => right - left);
+    /** @type {number[]} */
+    let removedCards = [];
+    for (let index of cardsToPickUp) {
+      let removed = deckRemoveAt(activeDeck, index);
+      if (removed != null) {
+        removedCards.push(removed);
+      }
+    }
+    if (removedCards.length === 0) {
+      return false;
+    }
+
+    removedCards.reverse();
+    for (let cardID of removedCards) {
+      deckAdd(shared.discard, cardID);
+    }
+    for (let cardID of [...shared.discard]) {
+      deckAdd(hand.play, cardID);
+    }
+    clearDeck(shared.discard);
+    shared.statusText = `${name} played ${removedCards.length} invalid ${activeZone} card${removedCards.length === 1 ? "" : "s"} and picked up the discard pile.`;
+    pushDebugTrace(`${name} invalid-play pickup removed=[${removedCards.join(",")}] play=${hand.play.length} discard=${deckSize(shared?.discard || [])} next=${shared?.currentPlayerToken || "-"}`);
+    advanceTurn();
+    validateHand(hand);
+    return true;
+  }
+
+  let cardsToPlay = [...safeSelection].sort((left, right) => right - left);
+  /** @type {number[]} */
+  let removedCards = [];
+  for (let index of cardsToPlay) {
+    let removed = deckRemoveAt(activeDeck, index);
+    if (removed != null) {
+      removedCards.push(removed);
+    }
+  }
+  if (removedCards.length === 0) {
+    return false;
+  }
+
+  removedCards.reverse();
+  for (let cardID of removedCards) {
+    deckAdd(shared.discard, cardID);
+  }
+
+  let lastPlayedCard = removedCards[removedCards.length - 1];
+  let clearHappened = lastPlayedCard != null && shouldClearDiscardPile(lastPlayedCard);
+  let cardsDrawn = refillPlayHandToInitialSize(hand);
+  let playerFinished = removePlayerFromOrderIfFinished(token, hand);
+  pushDebugTrace(`${name} resolved play removed=[${removedCards.join(",")}] clear=${clearHappened} drew=${cardsDrawn} finished=${playerFinished} discard=${deckSize(shared?.discard || [])} nextBeforeAdvance=${shared?.currentPlayerToken || "-"}`);
+
+  if (playerFinished) {
+    shared.statusText = `${name} has played their last card and is out of the round.`;
+  } else if (clearHappened) {
+    clearDeck(shared.discard);
+    shared.statusText = `${name} played ${removedCards.length} ${activeZone} card${removedCards.length === 1 ? "" : "s"}, cleared the discard pile, and keeps the turn.${cardsDrawn > 0 ? ` Drew ${cardsDrawn} card${cardsDrawn === 1 ? "" : "s"}.` : ""}`;
+  } else {
+    shared.statusText = `${name} played ${removedCards.length} ${activeZone} card${removedCards.length === 1 ? "" : "s"} to the discard pile.${cardsDrawn > 0 ? ` Drew ${cardsDrawn} card${cardsDrawn === 1 ? "" : "s"}.` : ""}`;
+    advanceTurn();
+  }
+  validateHand(hand);
+  return true;
+}
+
+/**
+ * @param {string} token
+ * @param {string} name
+ * @param {PlayerHand} hand
+ */
+function pickupDiscardPileForPlayer(token, name, hand) {
+  if (!shared || shared.currentPlayerToken !== token) {
+    pushDebugTrace(`${name} pickup blocked wrong-turn current=${shared?.currentPlayerToken || "-"}`);
+    return false;
+  }
+  if (!Array.isArray(shared.discard) || shared.discard.length === 0) {
+    pushDebugTrace(`${name} pickup blocked empty-discard`);
+    return false;
+  }
+
+  let discardBefore = shared.discard.length;
+  for (let cardID of [...shared.discard]) {
+    deckAdd(hand.play, cardID);
+  }
+  clearDeck(shared.discard);
+  shared.statusText = `${name} picked up the discard pile.`;
+  advanceTurn();
+  validateHand(hand);
+  pushDebugTrace(`${name} pickup success took=${discardBefore} play=${hand.play.length} next=${shared?.currentPlayerToken || "-"}`);
+  return true;
+}
+
+function maybeRunBotAutomation() {
+  if (!shared || !isHostPlayer()) {
+    return;
+  }
+
+  let bots = getSharedBots();
+  if (bots.length === 0) {
+    return;
+  }
+
+  if (millis() - lastBotActionAt < BOT_ACTION_DELAY_MS) {
+    return;
+  }
+
+  if (shared.phase === "swap") {
+    let pendingBot = bots.find((bot) => !bot.swapReady);
+    if (!pendingBot) {
+      return;
+    }
+    pushDebugTrace(`${pendingBot.name} swap start up=[${pendingBot.hand.up.join(",")}] play=[${pendingBot.hand.play.join(",")}]`);
+    chooseSwapLayoutForAi(pendingBot.hand);
+    pendingBot.swapReady = true;
+    shared.statusText = `${pendingBot.name} locked in their swap.`;
+    pushDebugTrace(`${pendingBot.name} swap locked up=[${pendingBot.hand.up.join(",")}] play=[${pendingBot.hand.play.join(",")}]`);
+    lastBotActionAt = millis();
+    return;
+  }
+
+  if (shared.phase !== "play") {
+    return;
+  }
+
+  let currentBot = getBotByToken(shared.currentPlayerToken);
+  if (!currentBot) {
+    return;
+  }
+
+  let action = chooseBotAction(currentBot);
+  pushDebugTrace(`${currentBot.name} decision zone=${action.zone || "none"} cards=[${action.cardIDs.join(",")}] play=${currentBot.hand.play.length} up=${currentBot.hand.up.length} down=${currentBot.hand.down.length} discard=${deckSize(shared?.discard || [])}`);
+  if (!action.zone) {
+    if (!removePlayerFromOrderIfFinished(currentBot.token, currentBot.hand)) {
+      advanceTurn();
+      shared.statusText = `${currentBot.name} had no valid zone to act from and passed the turn.`;
+      pushDebugTrace(`${currentBot.name} no-zone fallback advanced turn=${shared?.currentPlayerToken || "-"}`);
+    }
+    lastBotActionAt = millis();
+    return;
+  }
+
+  if (action.cardIDs.length === 0) {
+    if (pickupDiscardPileForPlayer(currentBot.token, currentBot.name, currentBot.hand)) {
+      lastBotActionAt = millis();
+    } else if (shared.currentPlayerToken === currentBot.token) {
+      let fallbackZone = getActiveZoneForHand(currentBot.hand);
+      pushDebugTrace(`${currentBot.name} pickup failed fallbackZone=${fallbackZone || "none"}`);
+      if (fallbackZone && currentBot.hand[fallbackZone].length > 0) {
+        let fallbackPlayed = executeSelectedCards(
+          currentBot.token,
+          currentBot.name,
+          currentBot.hand,
+          fallbackZone,
+          [currentBot.hand[fallbackZone][0]]
+        );
+        if (!fallbackPlayed && shared.currentPlayerToken === currentBot.token) {
+          advanceTurn();
+          shared.statusText = `${currentBot.name} could not resolve a fallback move and passed the turn.`;
+          pushDebugTrace(`${currentBot.name} fallback play failed advance=${shared?.currentPlayerToken || "-"}`);
+        }
+      } else {
+        advanceTurn();
+        shared.statusText = `${currentBot.name} had no cards available and passed the turn.`;
+        pushDebugTrace(`${currentBot.name} no-fallback-cards advance=${shared?.currentPlayerToken || "-"}`);
+      }
+      lastBotActionAt = millis();
+    }
+    return;
+  }
+
+  let played = executeSelectedCards(currentBot.token, currentBot.name, currentBot.hand, action.zone, action.cardIDs);
+  if (!played && shared.currentPlayerToken === currentBot.token) {
+    if (!pickupDiscardPileForPlayer(currentBot.token, currentBot.name, currentBot.hand)) {
+      advanceTurn();
+      shared.statusText = `${currentBot.name} could not resolve a move and passed the turn.`;
+      pushDebugTrace(`${currentBot.name} action+pickup failed advance=${shared?.currentPlayerToken || "-"}`);
+    }
+  }
+  lastBotActionAt = millis();
+}
+
 function maybeAdvanceSwapPhase() {
   if (!shared || !me || !isHostPlayer() || shared.phase !== "swap") {
     return;
@@ -899,13 +1388,43 @@ function maybeAdvanceSwapPhase() {
     return;
   }
 
+  clearDeck(shared.discard);
   shared.phase = "play";
   shared.currentPlayerToken = shared.hostToken;
   shared.statusText = "All players locked swaps. Play phase has started.";
 }
 
+/**
+ * @param {PlayerState} bot
+ */
+function applyRoundCardsToBot(bot) {
+  if (!Array.isArray(shared.playerOrder) || !Array.isArray(shared.deckOrder)) {
+    return;
+  }
+
+  let playerIndex = shared.playerOrder.indexOf(bot.token);
+  if (playerIndex < 0) {
+    return;
+  }
+
+  clearHand(bot.hand);
+  bot.swapReady = false;
+
+  let start = playerIndex * CARDS_PER_PLAYER;
+  let neededCards = shared.deckOrder.slice(start, start + CARDS_PER_PLAYER);
+  if (neededCards.length < CARDS_PER_PLAYER) {
+    return;
+  }
+
+  for (let index = 0; index < INITIAL_HAND_SIZE; index += 1) {
+    deckAdd(bot.hand.down, neededCards[index]);
+    deckAdd(bot.hand.up, neededCards[index + INITIAL_HAND_SIZE]);
+    deckAdd(bot.hand.play, neededCards[index + INITIAL_HAND_SIZE * 2]);
+  }
+}
+
 function clearPlaySelection() {
-  selectedPlayIndices = [];
+  selectedPlayCardIDs = [];
 }
 
 function toggleSelectedPlayIndex(index) {
@@ -914,29 +1433,30 @@ function toggleSelectedPlayIndex(index) {
     return;
   }
 
+  let cardID = me.hand[activeZone][index];
+
   if (activeZone === "down") {
-    selectedPlayIndices = selectedPlayIndices.includes(index) ? [] : [index];
+    selectedPlayCardIDs = selectedPlayCardIDs.includes(cardID) ? [] : [cardID];
     return;
   }
 
-  let cardID = me.hand[activeZone][index];
   let cardValue = loadCard(cardID).value;
 
-  if (selectedPlayIndices.includes(index)) {
-    selectedPlayIndices = selectedPlayIndices.filter((selectedIndex) => selectedIndex !== index);
+  if (selectedPlayCardIDs.includes(cardID)) {
+    selectedPlayCardIDs = selectedPlayCardIDs.filter((selectedCardID) => selectedCardID !== cardID);
     return;
   }
 
-  if (selectedPlayIndices.length > 0) {
-    let firstSelectedCard = me.hand[activeZone][selectedPlayIndices[0]];
+  if (selectedPlayCardIDs.length > 0) {
+    let firstSelectedCard = selectedPlayCardIDs[0];
     let firstValue = loadCard(firstSelectedCard).value;
     if (firstValue !== cardValue) {
-      selectedPlayIndices = [index];
+      selectedPlayCardIDs = [cardID];
       return;
     }
   }
 
-  selectedPlayIndices = [...selectedPlayIndices, index].sort((left, right) => left - right);
+  selectedPlayCardIDs = [...selectedPlayCardIDs, cardID].sort((left, right) => left - right);
 }
 
 function advanceTurn() {
@@ -950,11 +1470,18 @@ function advanceTurn() {
   let currentIndex = shared.playerOrder.indexOf(shared.currentPlayerToken);
   if (currentIndex < 0) {
     shared.currentPlayerToken = shared.playerOrder[0];
+    if (getBotByToken(shared.currentPlayerToken)) {
+      lastBotActionAt = Math.max(lastBotActionAt, millis() - BOT_ACTION_DELAY_MS + BOT_TURN_HANDOFF_DELAY_MS);
+    }
     return;
   }
 
+  let previousToken = shared.currentPlayerToken;
   let nextIndex = (currentIndex + 1) % shared.playerOrder.length;
   shared.currentPlayerToken = shared.playerOrder[nextIndex];
+  if (!getBotByToken(previousToken) && getBotByToken(shared.currentPlayerToken)) {
+    lastBotActionAt = Math.max(lastBotActionAt, millis() - BOT_ACTION_DELAY_MS + BOT_TURN_HANDOFF_DELAY_MS);
+  }
 }
 
 /**
@@ -968,22 +1495,22 @@ function hasNoCardsLeft(hand) {
 /**
  * @returns {boolean}
  */
-function removeCurrentPlayerFromOrderIfFinished() {
-  if (!shared || !me || !me.hand || !Array.isArray(shared.playerOrder)) {
+function removePlayerFromOrderIfFinished(token, hand) {
+  if (!shared || !Array.isArray(shared.playerOrder)) {
     return false;
   }
 
-  if (!hasNoCardsLeft(me.hand)) {
+  if (!hasNoCardsLeft(hand)) {
     return false;
   }
 
-  let currentIndex = shared.playerOrder.indexOf(me.token);
+  let currentIndex = shared.playerOrder.indexOf(token);
   if (currentIndex < 0) {
     return false;
   }
 
   shared.playerOrder.splice(currentIndex, 1);
-  if (shared.currentPlayerToken === me.token) {
+  if (shared.currentPlayerToken === token) {
     if (shared.playerOrder.length === 0) {
       shared.currentPlayerToken = "";
     } else {
@@ -1035,7 +1562,7 @@ function getClickedCardIndex(zone) {
   }
 
   let cards = selfPlayer[zone];
-  let rowX = bounds.x + ROW_X_OFFSET;
+  let rowX = bounds.x + PANEL_CARDS_X;
   let rowY = bounds.y + getZoneYOffset(zone);
 
   if (zone === "play") {
@@ -1070,6 +1597,19 @@ function getClickedCardIndex(zone) {
   return null;
 }
 
+/** @returns {number[]} */
+function getSelectedIndicesForActiveZone() {
+  let activeZone = getActiveTurnZone();
+  if (!activeZone || !me?.hand?.[activeZone]) {
+    return [];
+  }
+
+  return selectedPlayCardIDs
+    .map((cardID) => me.hand[activeZone].indexOf(cardID))
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right);
+}
+
 function playSelectedCards() {
   if (!shared || !me || !me.hand || !shared.discard) {
     return;
@@ -1078,47 +1618,48 @@ function playSelectedCards() {
   normalizeSharedState();
 
   if (!isPlayPhase()) {
-    statusMessage = "Cards can only be played during the play phase.";
+    setLocalStatus("Cards can only be played during the play phase.");
     updateUi();
     return;
   }
   if (!isCurrentPlayersTurn()) {
-    statusMessage = "It is not your turn.";
+    setLocalStatus("It is not your turn.");
     updateUi();
     return;
   }
   let activeZone = getActiveTurnZone();
   if (!activeZone) {
-    statusMessage = "You have no cards left to play.";
+    setLocalStatus("You have no cards left to play.");
     clearPlaySelection();
     updateUi();
     return;
   }
 
   let activeDeck = me.hand[activeZone];
-  let normalizedSelection = [...new Set(selectedPlayIndices)]
+  let selectedCards = selectedPlayCardIDs.filter((cardID) => activeDeck.includes(cardID));
+  let normalizedSelection = selectedCards
+    .map((cardID) => activeDeck.indexOf(cardID))
     .filter((index) => Number.isInteger(index) && index >= 0 && index < activeDeck.length)
     .sort((left, right) => left - right);
 
   if (normalizedSelection.length === 0) {
-    statusMessage = activeZone === "down"
+    setLocalStatus(activeZone === "down"
       ? "Select one down card first."
-      : `Select one or more same-value ${activeZone} cards first.`;
+      : `Select one or more same-value ${activeZone} cards first.`);
     clearPlaySelection();
     updateUi();
     return;
   }
 
   if (activeZone === "down" && normalizedSelection.length > 1) {
-    statusMessage = "Only one down card can be played at a time.";
-    selectedPlayIndices = [normalizedSelection[0]];
+    setLocalStatus("Only one down card can be played at a time.");
+    selectedPlayCardIDs = [activeDeck[normalizedSelection[0]]];
     updateUi();
     return;
   }
 
-  let selectedCards = normalizedSelection.map((index) => activeDeck[index]);
   if (selectedCards.some((cardID) => !isValidCardID(cardID))) {
-    statusMessage = "One or more selected cards are invalid.";
+    setLocalStatus("One or more selected cards are invalid.");
     clearPlaySelection();
     updateUi();
     return;
@@ -1126,78 +1667,17 @@ function playSelectedCards() {
 
   let firstValue = loadCard(selectedCards[0]).value;
   if (selectedCards.some((cardID) => loadCard(cardID).value !== firstValue)) {
-    statusMessage = "You can only play cards of the same value in one action.";
+    setLocalStatus("You can only play cards of the same value in one action.");
     clearPlaySelection();
     updateUi();
     return;
-  }
-
-  let validation = canPlayCardOnDiscard(selectedCards[0]);
-  if (!validation.ok) {
-    if (activeZone === "down") {
-      let failedIndex = normalizedSelection[0];
-      let failedCard = deckRemoveAt(activeDeck, failedIndex);
-
-      if (failedCard != null) {
-        deckAdd(shared.discard, failedCard);
-      }
-
-      for (let cardID of [...shared.discard]) {
-        deckAdd(me.hand.play, cardID);
-      }
-      clearDeck(shared.discard);
-      selectedSwap = null;
-      clearPlaySelection();
-      shared.statusText = `${me.name} revealed a down card that could not be played and picked up the discard pile.`;
-      advanceTurn();
-      validateHand(me.hand);
-      updateUi();
-      return;
-    }
-
-    statusMessage = validation.reason;
-    updateUi();
-    return;
-  }
-
-  let cardsToPlay = [...normalizedSelection].sort((left, right) => right - left);
-  /** @type {number[]} */
-  let removedCards = [];
-  for (let index of cardsToPlay) {
-    let removed = deckRemoveAt(activeDeck, index);
-    if (removed != null) {
-      removedCards.push(removed);
-    }
-  }
-
-  if (removedCards.length === 0) {
-    statusMessage = "No selected cards could be played.";
-    clearPlaySelection();
-    updateUi();
-    return;
-  }
-
-  removedCards.reverse();
-  for (let cardID of removedCards) {
-    deckAdd(shared.discard, cardID);
   }
 
   selectedSwap = null;
   clearPlaySelection();
-
-  let lastPlayedCard = removedCards[removedCards.length - 1];
-  let clearHappened = lastPlayedCard != null && shouldClearDiscardPile(lastPlayedCard);
-  let cardsDrawn = refillPlayHandToInitialSize(me.hand);
-  let playerFinished = removeCurrentPlayerFromOrderIfFinished();
-
-  if (playerFinished) {
-    shared.statusText = `${me.name} has played their last card and is out of the round.`;
-  } else if (clearHappened) {
-    clearDeck(shared.discard);
-    shared.statusText = `${me.name} played ${removedCards.length} ${activeZone} card${removedCards.length === 1 ? "" : "s"}, cleared the discard pile, and keeps the turn.${cardsDrawn > 0 ? ` Drew ${cardsDrawn} card${cardsDrawn === 1 ? "" : "s"}.` : ""}`;
-  } else {
-    shared.statusText = `${me.name} played ${removedCards.length} ${activeZone} card${removedCards.length === 1 ? "" : "s"} to the discard pile.${cardsDrawn > 0 ? ` Drew ${cardsDrawn} card${cardsDrawn === 1 ? "" : "s"}.` : ""}`;
-    advanceTurn();
+  let played = executeSelectedCards(me.token, me.name, me.hand, activeZone, selectedCards);
+  if (!played) {
+    setLocalStatus("That play could not be resolved.", 3200);
   }
   validateHand(me.hand);
   updateUi();
@@ -1211,19 +1691,15 @@ function pickupDiscardPile() {
     return;
   }
   if (!isCurrentPlayersTurn()) {
-    statusMessage = "It is not your turn.";
+    setLocalStatus("It is not your turn.");
     updateUi();
     return;
   }
 
-  for (let cardID of [...shared.discard]) {
-    deckAdd(me.hand.play, cardID);
+  if (pickupDiscardPileForPlayer(me.token, me.name, me.hand)) {
+    clearPlaySelection();
+    validateHand(me.hand);
   }
-  clearDeck(shared.discard);
-  clearPlaySelection();
-  shared.statusText = `${me.name} picked up the discard pile.`;
-  advanceTurn();
-  validateHand(me.hand);
 }
 
 function mousePressed() {
@@ -1376,6 +1852,7 @@ function buildRenderablePlayers() {
     name: player.name,
     isHost: player.token === shared.hostToken,
     isSelf: player.token === me.token,
+    isBot: Boolean(player.isBot),
     isCurrentTurn: player.token === shared.currentPlayerToken,
     activeZone: player.token === me.token ? activeZone : null,
     down: [...player.hand.down],
@@ -1407,7 +1884,8 @@ function updateUi() {
 
   if (ui.playStatusLabel) {
     let sharedStatus = shared?.statusText;
-    ui.playStatusLabel.textContent = sharedStatus || statusMessage;
+    let hasLocalOverride = localStatusMessage && millis() < localStatusExpiresAt;
+    ui.playStatusLabel.textContent = hasLocalOverride ? localStatusMessage : (sharedStatus || statusMessage);
   }
 
   if (ui.hostLabel) {
@@ -1418,6 +1896,9 @@ function updateUi() {
   let controlsDisabled = !shared || !me || !shared.draw || !shared.discard || !me.hand;
   if (ui.startButton) {
     ui.startButton.disabled = controlsDisabled || !isHostPlayer();
+  }
+  if (ui.addAiButton) {
+    ui.addAiButton.disabled = controlsDisabled || !isHostPlayer() || shared?.phase !== "lobby";
   }
   if (ui.resetButton) {
     ui.resetButton.disabled = controlsDisabled || !isHostPlayer();
@@ -1430,7 +1911,7 @@ function updateUi() {
       controlsDisabled ||
       !isPlayPhase() ||
       !isCurrentPlayersTurn() ||
-      selectedPlayIndices.length === 0;
+      selectedPlayCardIDs.length === 0;
   }
   if (ui.pickupDiscardButton) {
     ui.pickupDiscardButton.disabled =
