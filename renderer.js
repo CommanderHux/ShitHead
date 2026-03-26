@@ -15,6 +15,8 @@ const PLAY_ROW_Y_OFFSET = 208;
 const PLAY_ROW_STACK_OFFSET = 76;
 const PLAY_ROW_WRAP_AT = 3;
 const PANEL_BOTTOM_PADDING = 24;
+const PANEL_LABEL_X = 18;
+const PANEL_CARDS_X = 70;
 
 /**
  * @param {number[]} deck
@@ -123,9 +125,9 @@ function getRowYOffset(zone) {
 function renderTablePlaceholder(message) {
   push();
   noStroke();
-  fill("#12324d");
+  fill("#113c2c");
   rect(32, 32, width - 64, height - 64, 24);
-  fill("#e2e8f0");
+  fill("#f5ecd7");
   textAlign(CENTER, CENTER);
   textSize(26);
   text(message, width / 2, height / 2);
@@ -134,16 +136,17 @@ function renderTablePlaceholder(message) {
 
 /**
  * @param {number} cardID
- * @returns {{rank: string, suit: string, color: string}}
+ * @returns {{rank: string, suit: string, corner: string, color: string}}
  */
 function getCardVisual(cardID) {
   const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
-  const suits = ["C", "D", "H", "S"];
+  const suits = ["\u2663", "\u2666", "\u2665", "\u2660"];
   let card = loadCard(cardID);
   let suit = suits[card.suit];
   let rank = ranks[card.value];
-  let color = suit === "D" || suit === "H" ? "#b91c1c" : "#0f172a";
-  return { rank, suit, color };
+  let corner = `${rank}${suit}`;
+  let color = suit === "\u2666" || suit === "\u2665" ? "#b91c1c" : "#0f172a";
+  return { rank, suit, corner, color };
 }
 
 /**
@@ -155,15 +158,16 @@ function drawFaceUpCard(x, y, cardID) {
   let { rank, suit, color } = getCardVisual(cardID);
 
   push();
-  stroke("#dbe4ee");
+  stroke("#b59c72");
   strokeWeight(1.5);
-  fill("#fffdf8");
+  fill("#fbf6ea");
   rect(x, y, CARD_W, CARD_H, 10);
+  noFill();
+  stroke("#efe4ca");
+  strokeWeight(1);
+  rect(x + 3, y + 3, CARD_W - 6, CARD_H - 6, 8);
   noStroke();
   fill(color);
-  textAlign(LEFT, TOP);
-  textSize(14);
-  text(`${rank}${suit}`, x + 8, y + 7);
   textAlign(CENTER, CENTER);
   textSize(20);
   text(`${rank}\n${suit}`, x + CARD_W / 2, y + CARD_H / 2 + 2);
@@ -176,11 +180,15 @@ function drawFaceUpCard(x, y, cardID) {
  */
 function drawFaceDownCard(x, y) {
   push();
-  stroke("#bfdbfe");
+  stroke("#d9c59f");
   strokeWeight(1.5);
-  fill("#1d4ed8");
+  fill("#7c1f1f");
   rect(x, y, CARD_W, CARD_H, 10);
-  fill("#93c5fd");
+  noFill();
+  stroke("#f0d69a");
+  strokeWeight(1);
+  rect(x + 4, y + 4, CARD_W - 8, CARD_H - 8, 8);
+  fill("#e5c875");
   noStroke();
   for (let row = 0; row < 4; row += 1) {
     for (let col = 0; col < 3; col += 1) {
@@ -197,44 +205,59 @@ function drawFaceDownCard(x, y) {
  */
 function drawPileSection(x, y, pileState) {
   push();
-  stroke("#32506c");
+  stroke("#9e8255");
   strokeWeight(1.5);
-  fill("#102235");
-  rect(x, y, width - 2 * x, 92, 20);
+  fill("#163d2d");
+  rect(x, y, width - 2 * x, 104, 20);
 
   noStroke();
-  fill("#dbeafe");
-  textAlign(LEFT, TOP);
-  textSize(16);
-  text("Table Piles", x + 18, y + 14);
-
-  drawFaceDownCard(x + 26, y + 16);
+  drawFaceDownCard(x + 24, y + 24);
   if (pileState.discardTop == null) {
     push();
-    stroke("#3b4c5f");
+    stroke("#8d7651");
     strokeWeight(1);
     noFill();
-    rect(x + 206, y + 16, CARD_W, CARD_H, 10);
+    rect(x + 208, y + 24, CARD_W, CARD_H, 10);
     pop();
   } else {
-    drawFaceUpCard(x + 206, y + 16, pileState.discardTop);
+    drawFaceUpCard(x + 208, y + 24, pileState.discardTop);
   }
 
-  fill("#8fb5d7");
+  fill("#d9c08d");
   textSize(13);
-  text("Draw Pile", x + 94, y + 20);
-  text(`${pileState.drawCount} cards`, x + 94, y + 44);
-  text("Discard Pile", x + 274, y + 20);
-  text(`${pileState.discardCount} cards`, x + 274, y + 44);
+  text("Draw Pile", x + 88, y + 28);
+  text(`${pileState.drawCount} cards`, x + 88, y + 52);
+  text("Discard Pile", x + 272, y + 28);
+  text(`${pileState.discardCount} cards`, x + 272, y + 52);
 
   if (pileState.discardTop == null) {
-    fill("#64748b");
-    text("Empty", x + 274, y + 62);
+    fill("#a88f69");
+    text("Empty", x + 272, y + 74);
   } else {
-    fill("#64748b");
-    text("Top card shown", x + 274, y + 62);
+    fill("#a88f69");
+    text("Top card shown", x + 272, y + 74);
   }
 
+  pop();
+}
+
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {string} label
+ * @param {string} fillColor
+ * @param {string} textColor
+ */
+function drawBadge(x, y, label, fillColor, textColor) {
+  push();
+  textAlign(LEFT, CENTER);
+  textSize(11);
+  let badgeW = textWidth(label) + 16;
+  noStroke();
+  fill(fillColor);
+  rect(x, y, badgeW, 22, 999);
+  fill(textColor);
+  text(label, x + 8, y + 11);
   pop();
 }
 
@@ -251,7 +274,7 @@ function drawCardRow(x, y, cards, visibility, selectedIndices = null) {
     if (selectedIndices && selectedIndices.includes(index)) {
       push();
       noFill();
-      stroke("#fbbf24");
+      stroke("#e7c25f");
       strokeWeight(3);
       rect(cardX - 4, y - 4, CARD_W + 8, CARD_H + 8, 12);
       pop();
@@ -267,7 +290,7 @@ function drawCardRow(x, y, cards, visibility, selectedIndices = null) {
   for (let index = 0; index < emptySlots; index += 1) {
     let slotX = x + (cards.length + index) * (CARD_W + CARD_GAP);
     push();
-    stroke("#3b4c5f");
+    stroke("#7f6946");
     strokeWeight(1);
     noFill();
     rect(slotX, y, CARD_W, CARD_H, 10);
@@ -313,7 +336,7 @@ function drawWrappedPlayRow(x, y, cards, faceUp, selectedIndices = null) {
     if (selectedIndices && selectedIndices.includes(index)) {
       push();
       noFill();
-      stroke("#fbbf24");
+      stroke("#e7c25f");
       strokeWeight(3);
       rect(cardX - 4, cardY - 4, CARD_W + 8, CARD_H + 8, 12);
       pop();
@@ -338,39 +361,49 @@ function drawWrappedPlayRow(x, y, cards, faceUp, selectedIndices = null) {
  */
 function drawPlayerPanel(player, x, y, boxW, boxH, selectedSwap = null, selectedPlayIndices = null) {
   push();
-  stroke(player.isCurrentTurn ? "#34d399" : player.isSelf ? "#fbbf24" : "#32506c");
+  stroke(player.isCurrentTurn ? "#e0be6d" : player.isSelf ? "#ccb16e" : "#7f6a46");
   strokeWeight(player.isCurrentTurn ? 3 : player.isSelf ? 2.5 : 1.5);
-  fill("#102235");
+  fill("#123624");
   rect(x, y, boxW, boxH, 20);
+  noFill();
+  stroke("rgba(247, 236, 215, 0.10)");
+  strokeWeight(1);
+  rect(x + 5, y + 5, boxW - 10, boxH - 10, 16);
 
   noStroke();
-  fill("#f8fafc");
+  fill("#f8efdc");
   textAlign(LEFT, TOP);
   textSize(18);
-  let label = player.isHost ? `${player.name} [Host]` : player.name;
+  text(player.name, x + 16, y + 14);
+
+  let badgeX = x + 16 + textWidth(player.name) + 12;
+  if (player.isHost) {
+    drawBadge(badgeX, y + 13, "Dealer", "#c9a34d", "#fff8ea");
+    badgeX += 60;
+  }
   if (player.isSelf) {
-    label += " [You]";
+    drawBadge(badgeX, y + 13, "You", "#f3ead8", "#2f2418");
+    badgeX += 44;
   }
   if (player.isCurrentTurn) {
-    label += " [Turn]";
+    drawBadge(badgeX, y + 13, "Turn", "#2f6b4a", "#eef4e8");
   }
-  text(label, x + 16, y + 14);
 
-  fill("#8fb5d7");
+  fill("#d9c08d");
   textSize(13);
-  text("Down", x + 16, y + 46);
-  text("Up", x + 16, y + 132);
-  text("Play", x + 16, y + 218);
+  text("Down", x + PANEL_LABEL_X, y + 46);
+  text("Up", x + PANEL_LABEL_X, y + 132);
+  text("Play", x + PANEL_LABEL_X, y + 218);
 
   drawCardRow(
-    x + ROW_X_OFFSET,
+    x + PANEL_CARDS_X,
     y + DOWN_ROW_Y_OFFSET,
     player.down,
     "down-hidden",
     player.isSelf && player.activeZone === "down" ? selectedPlayIndices : null
   );
   drawCardRow(
-    x + ROW_X_OFFSET,
+    x + PANEL_CARDS_X,
     y + UP_ROW_Y_OFFSET,
     player.up,
     "up",
@@ -383,7 +416,7 @@ function drawPlayerPanel(player, x, y, boxW, boxH, selectedSwap = null, selected
       : null
   );
   drawWrappedPlayRow(
-    x + ROW_X_OFFSET,
+    x + PANEL_CARDS_X,
     y + PLAY_ROW_Y_OFFSET,
     player.play,
     player.isSelf,
@@ -405,28 +438,30 @@ function drawPlayerPanel(player, x, y, boxW, boxH, selectedSwap = null, selected
 function renderShitheadTable(players, tableState) {
   push();
   noStroke();
-  fill("#0f2232");
+  fill("#0d261b");
   rect(18, 18, width - 36, height - 36, 28);
+  fill("rgba(251, 242, 220, 0.03)");
+  rect(28, 28, width - 56, height - 56, 24);
+  stroke("#8b744d");
+  strokeWeight(1.2);
+  fill("#143827");
+  rect(38, 34, width - 76, 84, 18);
+  rect(38, 132, width - 76, 122, 18);
+  rect(38, 264, width - 76, height - 312, 18);
 
-  fill("#e2e8f0");
+  noStroke();
+  fill("#f7efdd");
   textAlign(LEFT, TOP);
-  textSize(26);
-  text("Shithead Table", 38, 32);
+  textSize(24);
+  text("Shithead Table", 54, 50);
 
-  fill("#93c5fd");
+  fill("#efe4ca");
   textSize(14);
-  text(`Room: ${tableState.roomName || "..."}`, 40, 68);
-  text(`Host: ${tableState.hostName}`, 210, 68);
-  text(`Phase: ${tableState.phase}`, 380, 68);
-  text(`Draw: ${tableState.drawCount}`, 520, 68);
-  text(`Discard: ${tableState.discardCount}`, 640, 68);
-  text(`Turn: ${tableState.currentTurnName}`, 40, 90);
+  text(tableState.statusText, 54, 84, width - 340, 22);
 
-  fill(tableState.isHost ? "#fef3c7" : "#cbd5e1");
-  text(tableState.isHost ? "Host controls are enabled below the canvas." : "Waiting for the host to deal or reset.", 240, 90);
-
-  fill("#dbeafe");
-  text(tableState.statusText, 40, 118, width - 80, 40);
+  drawBadge(width - 300, 48, `Turn: ${tableState.currentTurnName}`, "#204f38", "#f6efde");
+  drawBadge(width - 186, 48, `Draw ${tableState.drawCount}`, "#204f38", "#f6efde");
+  drawBadge(width - 92, 48, `Discard ${tableState.discardCount}`, "#204f38", "#f6efde");
 
   drawPileSection(40, 150, {
     drawCount: tableState.drawCount,

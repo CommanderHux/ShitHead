@@ -36,11 +36,16 @@ let drawDeck;
 /** @type {p_Deck} */
 let discard;
 
-/** @type {{roomLabel: HTMLElement | null, statusLabel: HTMLElement | null, hostLabel: HTMLElement | null, startButton: HTMLButtonElement | null, resetButton: HTMLButtonElement | null, finishSwapButton: HTMLButtonElement | null, playSelectedButton: HTMLButtonElement | null, pickupDiscardButton: HTMLButtonElement | null}} */
+/** @type {{setupScreen: HTMLElement | null, playScreen: HTMLElement | null, canvasShell: HTMLElement | null, roomLabel: HTMLElement | null, statusLabel: HTMLElement | null, playStatusLabel: HTMLElement | null, hostLabel: HTMLElement | null, returnButton: HTMLButtonElement | null, startButton: HTMLButtonElement | null, resetButton: HTMLButtonElement | null, finishSwapButton: HTMLButtonElement | null, playSelectedButton: HTMLButtonElement | null, pickupDiscardButton: HTMLButtonElement | null}} */
 let ui = {
+  setupScreen: null,
+  playScreen: null,
+  canvasShell: null,
   roomLabel: null,
   statusLabel: null,
+  playStatusLabel: null,
   hostLabel: null,
+  returnButton: null,
   startButton: null,
   resetButton: null,
   finishSwapButton: null,
@@ -56,6 +61,7 @@ async function initGame() {
   playerName = nameID;
   playerToken = createPlayerToken();
   playRules = await loadPlayRules();
+  setScreenMode("play");
 
   partyConnect(SERVER_URL, APP_NAME, roomName);
 
@@ -90,11 +96,16 @@ async function initGame() {
 
 function setup() {
   const canvas = createCanvas(960, 640);
-  canvas.parent(document.querySelector("main"));
+  canvas.parent(document.getElementById("canvas-shell"));
 
+  ui.setupScreen = document.getElementById("setup-screen");
+  ui.playScreen = document.getElementById("play-screen");
+  ui.canvasShell = document.getElementById("canvas-shell");
   ui.roomLabel = document.getElementById("room-label");
   ui.statusLabel = document.getElementById("status-label");
+  ui.playStatusLabel = document.getElementById("play-status-label");
   ui.hostLabel = document.getElementById("host-label");
+  ui.returnButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("return-to-selection"));
   ui.startButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("start-party"));
   ui.resetButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("reset-party"));
   ui.finishSwapButton = /** @type {HTMLButtonElement | null} */ (document.getElementById("finish-swap"));
@@ -115,6 +126,9 @@ function setup() {
   }
   if (ui.pickupDiscardButton) {
     ui.pickupDiscardButton.addEventListener("click", pickupDiscardPile);
+  }
+  if (ui.returnButton) {
+    ui.returnButton.addEventListener("click", returnToSelection);
   }
 
   updateUi();
@@ -162,6 +176,22 @@ function draw() {
       selectedPlayIndices,
     }
   );
+}
+
+/**
+ * @param {"setup" | "play"} mode
+ */
+function setScreenMode(mode) {
+  if (ui.setupScreen) {
+    ui.setupScreen.classList.toggle("screen-hidden", mode !== "setup");
+  }
+  if (ui.playScreen) {
+    ui.playScreen.classList.toggle("screen-hidden", mode !== "play");
+  }
+}
+
+function returnToSelection() {
+  window.location.reload();
 }
 
 /**
@@ -1372,8 +1402,12 @@ function updateUi() {
   }
 
   if (ui.statusLabel) {
+    ui.statusLabel.textContent = statusMessage;
+  }
+
+  if (ui.playStatusLabel) {
     let sharedStatus = shared?.statusText;
-    ui.statusLabel.textContent = sharedStatus || statusMessage;
+    ui.playStatusLabel.textContent = sharedStatus || statusMessage;
   }
 
   if (ui.hostLabel) {
