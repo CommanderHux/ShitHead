@@ -1,0 +1,9 @@
+{
+  "rule": [
+    "lastValue == null",
+    "value === 0",
+    "value === 8",
+    "lastValue === 5 && value <= 5",
+    "lastValue !== 5 && value >= lastValue"
+  ]
+}

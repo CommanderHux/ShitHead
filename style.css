@@ -13,8 +13,43 @@ body {
 }
 
 main {
-  width: min(92vw, 760px);
+  width: min(92vw, 1200px);
+  max-width: calc(100vw - 32px);
   padding: 24px 0 40px;
+  overflow-x: auto;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  color: #cbd5e1;
+}
+
+input {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid #35506e;
+  border-radius: 10px;
+  background: #12273b;
+  color: #f8fafc;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #d97706;
+  color: #fff7ed;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 h1 {
@@ -27,9 +62,33 @@ p {
   line-height: 1.45;
 }
 
+.join-panel,
+.control-panel {
+  margin-bottom: 18px;
+}
+
+.join-panel {
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.join-panel button {
+  margin-top: 4px;
+}
+
+.control-panel {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 canvas {
   display: block;
-  width: 100%;
+  width: auto;
+  min-width: 100%;
+  max-width: none;
   height: auto;
   border-radius: 16px;
   box-shadow: 0 25px 60px rgba(2, 6, 23, 0.45);

@@ -10,11 +10,28 @@
   </head>
   <body>
     <main>
-      <label for="room">Enter Room Key</label>
-      <input id="room" type="text">
-      <label for="name">Enter Username</label>
-      <input id="name" type="text">
+      <h1>Shithead Party Demo</h1>
+      <p id="room-label">Room: waiting...</p>
+      <p id="host-label">Host: waiting...</p>
+      <p id="status-label">Waiting for room details...</p>
+
+      <section class="join-panel">
+        <label for="room">Enter Room Key</label>
+        <input id="room" type="text">
+        <label for="name">Enter Username</label>
+        <input id="name" type="text">
+        <button id="enter-room" type="button">Enter Room</button>
+      </section>
+
+      <section class="control-panel">
+        <button id="start-party" type="button">Host Deal Cards</button>
+        <button id="reset-party" type="button">Host Reset Party</button>
+        <button id="finish-swap" type="button">Lock Swaps</button>
+        <button id="play-selected" type="button">Play Selected</button>
+        <button id="pickup-discard" type="button">Take Discard</button>
+      </section>
     </main>
+    <script src="renderer.js"></script>
     <script src="sketch.js"></script>
   </body>
 </html>
