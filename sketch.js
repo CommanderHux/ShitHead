@@ -847,10 +847,10 @@ function getTopDiscardCard() {
 
 /**
  * @param {number} cardID
+ * @param {number | null} topDiscard
  * @returns {boolean}
  */
-function evaluateRule(cardID) {
-  let topDiscard = getTopDiscardCard();
+function evaluateRuleAgainstTop(cardID, topDiscard) {
   let card = loadCard(cardID);
   let topCard = topDiscard == null ? null : loadCard(topDiscard);
   let value = card.value;
@@ -872,6 +872,14 @@ function evaluateRule(cardID) {
     console.error("Failed to evaluate play rule:", error);
     return false;
   }
+}
+
+/**
+ * @param {number} cardID
+ * @returns {boolean}
+ */
+function evaluateRule(cardID) {
+  return evaluateRuleAgainstTop(cardID, getTopDiscardCard());
 }
 
 /**
@@ -1145,6 +1153,59 @@ function getPlayableIndicesForHand(hand, token, zone) {
 }
 
 /**
+ * @param {string} token
+ * @returns {PlayerState | null}
+ */
+function getPlayerByToken(token) {
+  return getConnectedPlayers().find((player) => player.token === token) || null;
+}
+
+/**
+ * @param {string} token
+ * @returns {PlayerState | null}
+ */
+function getNextPlayerInOrder(token) {
+  if (!shared || !Array.isArray(shared.playerOrder) || shared.playerOrder.length === 0) {
+    return null;
+  }
+
+  let index = shared.playerOrder.indexOf(token);
+  if (index < 0) {
+    return null;
+  }
+
+  let nextToken = shared.playerOrder[(index + 1) % shared.playerOrder.length];
+  if (!nextToken || nextToken === token) {
+    return null;
+  }
+
+  return getPlayerByToken(nextToken);
+}
+
+/**
+ * @param {string} currentToken
+ * @param {number} cardID
+ * @returns {boolean}
+ */
+function wouldTrapNextVisibleUpPlayer(currentToken, cardID) {
+  if (shouldClearDiscardPile(cardID)) {
+    return false;
+  }
+
+  let nextPlayer = getNextPlayerInOrder(currentToken);
+  if (!nextPlayer) {
+    return false;
+  }
+
+  let nextZone = getActiveZoneForHand(nextPlayer.hand);
+  if (nextZone !== "up" || nextPlayer.hand.up.length === 0) {
+    return false;
+  }
+
+  return nextPlayer.hand.up.every((upCardID) => !evaluateRuleAgainstTop(upCardID, cardID));
+}
+
+/**
  * @param {PlayerHand} hand
  */
 function chooseSwapLayoutForAi(hand) {
@@ -1183,11 +1244,61 @@ function chooseBotAction(bot) {
     return { zone, cardIDs: [] };
   }
 
-  let chosenIndex = [...playableIndices].sort((leftIndex, rightIndex) => {
-    let leftCardID = bot.hand[zone][leftIndex];
-    let rightCardID = bot.hand[zone][rightIndex];
-    let leftScore = getAiPlayPreferenceScore(leftCardID);
-    let rightScore = getAiPlayPreferenceScore(rightCardID);
+  let topDiscardCard = getTopDiscardCard();
+  let lastValue = topDiscardCard == null ? null : loadCard(topDiscardCard).value;
+  let candidateValues = [...new Set(playableIndices.map((index) => loadCard(bot.hand[zone][index]).value))];
+  let chosenValue = candidateValues.sort((leftValue, rightValue) => {
+    let leftCardID = playableIndices
+      .map((index) => bot.hand[zone][index])
+      .filter((cardID) => loadCard(cardID).value === leftValue)
+      .sort((left, right) => left - right)[0];
+    let rightCardID = playableIndices
+      .map((index) => bot.hand[zone][index])
+      .filter((cardID) => loadCard(cardID).value === rightValue)
+      .sort((left, right) => left - right)[0];
+
+    let leftScore = getAiPlayPreferenceScore(leftCardID, lastValue);
+    let rightScore = getAiPlayPreferenceScore(rightCardID, lastValue);
+    if (wouldTrapNextVisibleUpPlayer(bot.token, leftCardID)) {
+      leftScore -= 20;
+    }
+    if (wouldTrapNextVisibleUpPlayer(bot.token, rightCardID)) {
+      rightScore -= 20;
+    }
+
+    if (leftScore !== rightScore) {
+      return leftScore - rightScore;
+    }
+
+    return leftValue - rightValue;
+  })[0];
+
+  let matching = playableIndices
+    .filter((index) => loadCard(bot.hand[zone][index]).value === chosenValue)
+    .map((index) => bot.hand[zone][index]);
+  return { zone, cardIDs: matching };
+}
+
+/**
+ * @param {PlayerState} bot
+ * @param {"play" | "up" | "down"} zone
+ * @returns {number[]}
+ */
+function chooseBotForcedAction(bot, zone) {
+  let deck = bot.hand[zone];
+  if (!Array.isArray(deck) || deck.length === 0) {
+    return [];
+  }
+
+  if (zone === "down") {
+    return [deck[0]];
+  }
+
+  let topDiscardCard = getTopDiscardCard();
+  let lastValue = topDiscardCard == null ? null : loadCard(topDiscardCard).value;
+  let sortedCardIDs = [...deck].sort((leftCardID, rightCardID) => {
+    let leftScore = getAiPlayPreferenceScore(leftCardID, lastValue);
+    let rightScore = getAiPlayPreferenceScore(rightCardID, lastValue);
 
     if (leftScore !== rightScore) {
       return leftScore - rightScore;
@@ -1205,31 +1316,29 @@ function chooseBotAction(bot) {
     }
 
     return leftCardID - rightCardID;
-  })[0];
-  let chosenValue = loadCard(bot.hand[zone][chosenIndex]).value;
-  let matching = playableIndices
-    .filter((index) => loadCard(bot.hand[zone][index]).value === chosenValue)
-    .map((index) => bot.hand[zone][index]);
-  return { zone, cardIDs: matching };
+  });
+
+  return [sortedCardIDs[0]];
 }
 
 /**
  * Lower score means "play this sooner".
  * Value mapping is 0=2, 5=7, 8=10.
  * @param {number} cardID
+ * @param {number | null} lastValue
  * @returns {number}
  */
-function getAiPlayPreferenceScore(cardID) {
+function getAiPlayPreferenceScore(cardID, lastValue = null) {
   let { value } = loadCard(cardID);
 
-  if (value === 5) {
-    return 4.5;
-  }
   if (value === 0) {
     return 30;
   }
   if (value === 8) {
     return 40;
+  }
+  if (value === 5) {
+    return lastValue == null || lastValue < 5 ? 2.5 : 13.5;
   }
   if (value < 5) {
     return 10 + value;
@@ -1423,6 +1532,21 @@ function maybeRunBotAutomation() {
   }
 
   if (action.cardIDs.length === 0) {
+    let forcedCardIDs = chooseBotForcedAction(currentBot, action.zone);
+    if (forcedCardIDs.length > 0) {
+      let forcedPlayed = executeSelectedCards(
+        currentBot.token,
+        currentBot.name,
+        currentBot.hand,
+        action.zone,
+        forcedCardIDs
+      );
+      if (forcedPlayed) {
+        lastBotActionAt = millis();
+        return;
+      }
+    }
+
     if (pickupDiscardPileForPlayer(currentBot.token, currentBot.name, currentBot.hand)) {
       lastBotActionAt = millis();
     } else if (shared.currentPlayerToken === currentBot.token) {
