@@ -227,20 +227,32 @@ function draw() {
 
   renderShitheadTable(
     players,
-    {
-      roomName,
-      phase: shared.phase,
-      drawCount: getDrawCount(),
-      discardCount: deckSize(shared.discard),
-      discardTop: deckSize(shared.discard) > 0 ? shared.discard[shared.discard.length - 1] : null,
-      statusText: shared.statusText || statusMessage,
-      hostName: getHostName(),
-      currentTurnName: getCurrentTurnName(),
-      isHost: isHostPlayer(),
-      selectedSwap,
-      selectedPlayIndices: getSelectedIndicesForActiveZone(),
-    }
+    buildTableState()
   );
+}
+
+function buildTableState() {
+  return {
+    roomName,
+    phase: shared.phase,
+    drawCount: getDrawCount(),
+    discardCount: deckSize(shared.discard),
+    discardTop: deckSize(shared.discard) > 0 ? shared.discard[shared.discard.length - 1] : null,
+    statusText: shared.statusText || statusMessage,
+    hostName: getHostName(),
+    currentTurnName: getCurrentTurnName(),
+    isHost: isHostPlayer(),
+    selectedSwap,
+    selectedPlayIndices: getSelectedIndicesForActiveZone(),
+    selectedPlayCount: selectedPlayCardIDs.length,
+    canAddAi: Boolean(shared && isHostPlayer() && shared.phase === "lobby"),
+    canRemoveAi: Boolean(shared && isHostPlayer() && shared.phase === "lobby" && getSharedBots().length > 0),
+    canDeal: Boolean(shared && me && shared.draw && shared.discard && isHostPlayer()),
+    canReset: Boolean(shared && me && shared.draw && shared.discard && isHostPlayer()),
+    canLockSwap: Boolean(shared && me && isSwapPhase() && !me.swapReady),
+    canPlaySelected: Boolean(shared && me && isPlayPhase() && isCurrentPlayersTurn() && selectedPlayCardIDs.length > 0),
+    canPickupDiscard: Boolean(shared && me && isPlayPhase() && isCurrentPlayersTurn() && deckSize(shared.discard) > 0),
+  };
 }
 
 /**
@@ -1772,6 +1784,70 @@ function pickupDiscardPile() {
   }
 }
 
+function handleCanvasActionClick() {
+  if (!shared || !me || !me.hand) {
+    return false;
+  }
+
+  let tableState = buildTableState();
+  let actionTargets = getTableActionTargets(tableState);
+  for (let target of actionTargets) {
+    if (
+      mouseX >= target.x &&
+      mouseX <= target.x + target.w &&
+      mouseY >= target.y &&
+      mouseY <= target.y + target.h
+    ) {
+      if (!target.enabled) {
+        return true;
+      }
+
+      if (target.action === "add-ai") {
+        addAiPlayerAsHost();
+      } else if (target.action === "remove-ai") {
+        removeAiPlayerAsHost();
+      } else if (target.action === "deal") {
+        startPartyAsHost();
+      } else if (target.action === "reset") {
+        resetPartyAsHost();
+      } else if (target.action === "lock-swap") {
+        lockSwapPhase();
+      } else if (target.action === "play-selected") {
+        playSelectedCards();
+      }
+      return true;
+    }
+  }
+
+  let discardBounds = getDiscardPileHitBounds();
+  if (
+    mouseX >= discardBounds.x &&
+    mouseX <= discardBounds.x + discardBounds.w &&
+    mouseY >= discardBounds.y &&
+    mouseY <= discardBounds.y + discardBounds.h
+  ) {
+    if (tableState.canPlaySelected) {
+      playSelectedCards();
+    }
+    return true;
+  }
+
+  let pickupBounds = getPickupButtonBounds();
+  if (
+    mouseX >= pickupBounds.x &&
+    mouseX <= pickupBounds.x + pickupBounds.w &&
+    mouseY >= pickupBounds.y &&
+    mouseY <= pickupBounds.y + pickupBounds.h
+  ) {
+    if (tableState.canPickupDiscard) {
+      pickupDiscardPile();
+    }
+    return true;
+  }
+
+  return false;
+}
+
 function mousePressed() {
   if (!shared || !me || !me.hand) {
     return;
@@ -1784,6 +1860,10 @@ function mousePressed() {
     mouseY <= height;
 
   if (!clickInsideCanvas) {
+    return;
+  }
+
+  if (handleCanvasActionClick()) {
     return;
   }
 

@@ -140,13 +140,7 @@ p {
 }
 
 .control-panel {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.control-panel button {
-  flex: 1 1 150px;
+  display: none;
 }
 
 .play-header {
@@ -248,14 +242,6 @@ canvas {
     gap: 10px;
   }
 
-  .control-panel {
-    gap: 10px;
-  }
-
-  .control-panel button {
-    flex-basis: calc(50% - 5px);
-  }
-
   #return-to-selection,
   #enter-room,
   #offline-game {
@@ -269,7 +255,4 @@ canvas {
 }
 
 @media (max-width: 480px) {
-  .control-panel button {
-    flex-basis: 100%;
-  }
 }

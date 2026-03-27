@@ -17,6 +17,9 @@ const PLAY_ROW_WRAP_AT = 3;
 const PANEL_BOTTOM_PADDING = 24;
 const PANEL_LABEL_X = 18;
 const PANEL_CARDS_X = 70;
+const HEADER_ACTION_Y = 74;
+const HEADER_ACTION_H = 28;
+const HEADER_ACTION_GAP = 10;
 
 /**
  * @param {number[]} deck
@@ -201,7 +204,7 @@ function drawFaceDownCard(x, y) {
 /**
  * @param {number} x
  * @param {number} y
- * @param {{drawCount: number, discardCount: number, discardTop: number | null}} pileState
+ * @param {{drawCount: number, discardCount: number, discardTop: number | null, canPlayToDiscard: boolean, canPickup: boolean}} pileState
  */
 function drawPileSection(x, y, pileState) {
   push();
@@ -212,6 +215,15 @@ function drawPileSection(x, y, pileState) {
 
   noStroke();
   drawFaceDownCard(x + 24, y + 24);
+  if (pileState.canPlayToDiscard) {
+    let discardBounds = getDiscardPileHitBounds();
+    push();
+    noFill();
+    stroke("#d7bb79");
+    strokeWeight(2);
+    rect(discardBounds.x, discardBounds.y, discardBounds.w, discardBounds.h, 14);
+    pop();
+  }
   if (pileState.discardTop == null) {
     push();
     stroke("#8d7651");
@@ -234,9 +246,20 @@ function drawPileSection(x, y, pileState) {
     fill("#a88f69");
     text("Empty", x + 272, y + 74);
   } else {
-    fill("#a88f69");
-    text("Top card shown", x + 272, y + 74);
+    fill(pileState.canPlayToDiscard ? "#e6cb8a" : "#a88f69");
+    text(pileState.canPlayToDiscard ? "Tap pile to play" : "Top card shown", x + 272, y + 74);
   }
+
+  let pickupBounds = getPickupButtonBounds();
+  push();
+  noStroke();
+  fill(pileState.canPickup ? "#cda24c" : "rgba(169, 145, 96, 0.32)");
+  rect(pickupBounds.x, pickupBounds.y, pickupBounds.w, pickupBounds.h, 14);
+  fill(pileState.canPickup ? "#fff8ea" : "#bda87f");
+  textAlign(CENTER, CENTER);
+  textSize(12);
+  text("Take Pile", pickupBounds.x + pickupBounds.w / 2, pickupBounds.y + pickupBounds.h / 2 + 1);
+  pop();
 
   pop();
 }
@@ -259,6 +282,104 @@ function drawBadge(x, y, label, fillColor, textColor) {
   fill(textColor);
   text(label, x + 8, y + 11);
   pop();
+}
+
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {string} label
+ * @param {boolean} enabled
+ */
+function drawActionChip(x, y, label, enabled) {
+  push();
+  textAlign(LEFT, CENTER);
+  textSize(12);
+  let chipW = Math.max(72, textWidth(label) + 22);
+  noStroke();
+  fill(enabled ? "#cda24c" : "rgba(169, 145, 96, 0.32)");
+  rect(x, y, chipW, HEADER_ACTION_H, 999);
+  fill(enabled ? "#fff8ea" : "#bda87f");
+  text(label, x + 11, y + HEADER_ACTION_H / 2 + 1);
+  pop();
+}
+
+/**
+ * @param {{phase: string, isHost: boolean, canAddAi: boolean, canRemoveAi: boolean, canDeal: boolean, canReset: boolean, canLockSwap: boolean, canPlaySelected: boolean, canPickupDiscard: boolean, selectedPlayCount: number}} tableState
+ * @returns {{label: string, action: string, enabled: boolean}[]}
+ */
+function getVisibleTableActions(tableState) {
+  /** @type {{label: string, action: string, enabled: boolean}[]} */
+  let actions = [];
+
+  if (tableState.isHost && tableState.phase === "lobby") {
+    actions.push({ label: "Add AI", action: "add-ai", enabled: tableState.canAddAi });
+    actions.push({ label: "Remove AI", action: "remove-ai", enabled: tableState.canRemoveAi });
+    actions.push({ label: "Deal", action: "deal", enabled: tableState.canDeal });
+  }
+
+  if (tableState.phase === "swap") {
+    actions.push({ label: "Lock In", action: "lock-swap", enabled: tableState.canLockSwap });
+  }
+
+  if (tableState.phase === "play") {
+    
+  }
+
+  if (tableState.isHost) {
+    actions.push({ label: "Reset", action: "reset", enabled: tableState.canReset });
+  }
+
+  return actions;
+}
+
+/**
+ * @param {{phase: string, isHost: boolean, canAddAi: boolean, canRemoveAi: boolean, canDeal: boolean, canReset: boolean, canLockSwap: boolean, canPlaySelected: boolean, canPickupDiscard: boolean, selectedPlayCount: number}} tableState
+ * @returns {{x: number, y: number, w: number, h: number, action: string, enabled: boolean, label: string}[]}
+ */
+function getTableActionTargets(tableState) {
+  let actions = getVisibleTableActions(tableState);
+  /** @type {{x: number, y: number, w: number, h: number, action: string, enabled: boolean, label: string}[]} */
+  let targets = [];
+  let nextRight = width - 56;
+
+  textSize(12);
+  for (let index = actions.length - 1; index >= 0; index -= 1) {
+    let action = actions[index];
+    let chipW = Math.max(72, textWidth(action.label) + 22);
+    let x = nextRight - chipW;
+    targets.unshift({
+      x,
+      y: HEADER_ACTION_Y,
+      w: chipW,
+      h: HEADER_ACTION_H,
+      action: action.action,
+      enabled: action.enabled,
+      label: action.label,
+    });
+    nextRight = x - HEADER_ACTION_GAP;
+  }
+
+  return targets;
+}
+
+/** @returns {{x: number, y: number, w: number, h: number}} */
+function getDiscardPileHitBounds() {
+  return {
+    x: 248,
+    y: 174,
+    w: 152,
+    h: 78,
+  };
+}
+
+/** @returns {{x: number, y: number, w: number, h: number}} */
+function getPickupButtonBounds() {
+  return {
+    x: 416,
+    y: 186,
+    w: 108,
+    h: 34,
+  };
 }
 
 /**
@@ -437,7 +558,7 @@ function drawPlayerPanel(player, x, y, boxW, boxH, selectedSwap = null, selected
 
 /**
  * @param {{name: string, isHost: boolean, isSelf: boolean, isBot: boolean, isCurrentTurn: boolean, activeZone: "play" | "up" | "down" | null, down: number[], up: number[], play: number[]}[]} players
- * @param {{roomName: string, phase: string, drawCount: number, discardCount: number, discardTop: number | null, statusText: string, hostName: string, currentTurnName: string, isHost: boolean, selectedSwap: {zone: "up" | "play", index: number} | null, selectedPlayIndices: number[]}} tableState
+ * @param {{roomName: string, phase: string, drawCount: number, discardCount: number, discardTop: number | null, statusText: string, hostName: string, currentTurnName: string, isHost: boolean, selectedSwap: {zone: "up" | "play", index: number} | null, selectedPlayIndices: number[], selectedPlayCount: number, canAddAi: boolean, canRemoveAi: boolean, canDeal: boolean, canReset: boolean, canLockSwap: boolean, canPlaySelected: boolean, canPickupDiscard: boolean}} tableState
  */
 function renderShitheadTable(players, tableState) {
   push();
@@ -461,16 +582,23 @@ function renderShitheadTable(players, tableState) {
 
   fill("#efe4ca");
   textSize(14);
-  text(tableState.statusText, 54, 84, width - 340, 22);
+  text(tableState.statusText, 54, 84, width - 520, 22);
 
   drawBadge(width - 300, 48, `Turn: ${tableState.currentTurnName}`, "#204f38", "#f6efde");
   drawBadge(width - 186, 48, `Draw ${tableState.drawCount}`, "#204f38", "#f6efde");
   drawBadge(width - 92, 48, `Discard ${tableState.discardCount}`, "#204f38", "#f6efde");
 
+  let actionTargets = getTableActionTargets(tableState);
+  for (let action of actionTargets) {
+    drawActionChip(action.x, action.y, action.label, action.enabled);
+  }
+
   drawPileSection(40, 150, {
     drawCount: tableState.drawCount,
     discardCount: tableState.discardCount,
     discardTop: tableState.discardTop,
+    canPlayToDiscard: tableState.canPlaySelected,
+    canPickup: tableState.canPickupDiscard,
   });
 
   let metrics = getTableMetrics(players);
