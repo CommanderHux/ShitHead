@@ -20,25 +20,42 @@ function SetupCanvas() {
   canvas.addEventListener("mouseup", onMouseDown)
 }
 
-export let stack: Set<Card> = new Set([]);
+export let stack: Set<Rect> = new Set([]);
 SetupCanvas();
-let draw = new Draw(50, 100);
+export let draw = new Draw(50, 100);
+export let discard = new Deck(125,100,[])
+
+let deal = new Rect(50,450,50,24)
 let player = new Player(100, 200, {
   up: draw.getCards(3),
   down: draw.getCards(3),
   hand: draw.getCards(3),
 })
-player.draw();
-draw.draw();
+stack.add(deal)
+deal.onClick = () => {
+  deal.f = deal.f == "red" ? "black" : "red"
+}
+requestAnimationFrame(update);
+function update(){
+  context.clearRect(0,0,canvas.width,canvas.height);
+  player.draw();
+  draw.draw();
+  discard.draw();
+  deal.draw();
+  requestAnimationFrame(update);
+}
 //When deal is pressed, add cards to everyone's hand
 //Then draw the hand
 export function onMouseDown(mouse: MouseEvent) {
   let x = mouse.offsetX / dpr;
   let y = mouse.offsetY / dpr;
   
-  [...stack.values()].forEach(card => {
-    if(inRange(x,y,card.x,card.y,card.w,card.h)){
-      card.onClick(card.id);
+  [...stack.values()].forEach(shape => {
+    if(inRange(x,y,shape.x,shape.y,shape.w,shape.h)){
+      if(shape instanceof Card)
+        shape.onClick(shape);
+      if(shape instanceof Rect)
+        shape.onClick();
       new Circle(x,y,5).draw();
     }
   })

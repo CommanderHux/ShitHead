@@ -43,7 +43,6 @@ export class Deck {
         this.updateCards();
         if (this.cardIDs.length == 0)
             return;
-        console.log(this.cards.length);
         this.cards.forEach((card, i) => {
             card.id = this.hidden ?
                 CARD_BACK_ID :
@@ -99,9 +98,9 @@ export class Player {
             play: new Deck(this.x, this.y, []),
             down: new Deck(this.x, this.y, this.cardIDs.down, 3, true, false),
             up: new Deck(this.x, this.y + 100, this.cardIDs.up, 3, false, false),
-            hand: new Deck(this.x, this.y + 200, this.cardIDs.hand, 3, false, true, () => {
-                this.cards.play.cardIDs.push();
-                return;
+            hand: new Deck(this.x, this.y + 200, this.cardIDs.hand, 3, false, true, (card) => {
+                console.log("clicked card");
+                card.y += 10;
             }),
         };
     }

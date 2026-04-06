@@ -90,7 +90,7 @@ export class Card extends Rect {
     y: number,
     w: number,
     h: number,
-    public onClick: (id: number) => any = () => {},
+    public onClick: (...args: any) => any = () => {},
   ) {
     super(x, y, w, h,"white","white");
     this.suit = id % 4;

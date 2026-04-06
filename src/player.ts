@@ -11,7 +11,7 @@ export class Deck {
         public visible: number = 0,
         public hidden: boolean = false,
         public clickable: boolean = false,
-        public onClick?: (id: number) => void,
+        public onClick?: (...args: any) => void,
     ) {this.updateCards()}
     updateCards(){
         
@@ -40,7 +40,6 @@ export class Deck {
     draw() {
         this.updateCards();
         if(this.cardIDs.length == 0) return;
-        console.log(this.cards.length)
         this.cards.forEach((card,i) => {
             card.id = this.hidden ?
                 CARD_BACK_ID :
@@ -112,9 +111,9 @@ export class Player {
             hand: new Deck(this.x,this.y+200,
                 this.cardIDs.hand,
                 3,false,
-                true, () => {
-                    this.cards.play.cardIDs.push()
-                    return;
+                true, (card: Card) => {
+                    console.log("clicked card")
+                    card.y += 10;
                 }),
 
         }
