@@ -70,14 +70,20 @@ const UNICODE_CARD_IMAGE_BASE_URL = new URL(
   "../../assets/unicode-card-images/",
   import.meta.url,
 );
+const UNICODE_CARD_IMAGE_CACHE_BUST = "2026-04-06-white-bg";
 const UNICODE_CARD_IMAGE_URLS: Array<string | null> = UNICODE_CARD_IMAGE_FILES.map(
-  (filename) => new URL(filename, UNICODE_CARD_IMAGE_BASE_URL).href,
+  (filename) => {
+    const url = new URL(filename, UNICODE_CARD_IMAGE_BASE_URL);
+    url.searchParams.set("v", UNICODE_CARD_IMAGE_CACHE_BUST);
+    return url.href;
+  },
 );
 const UNICODE_CARD_IMAGE_CACHE = new Map<number, HTMLImageElement | null>();
 const UNICODE_CARD_IMAGE_LOADING = new Map<
   number,
   Promise<HTMLImageElement | null>
 >();
+let preloadUnicodeCardImagesPromise: Promise<void> | null = null;
 
 export function getCachedUnicodeCardImage(
   id: number,
@@ -130,4 +136,16 @@ export function loadUnicodeCardImage(id: number): Promise<HTMLImageElement | nul
 
   UNICODE_CARD_IMAGE_LOADING.set(id, loadPromise);
   return loadPromise;
+}
+
+export function preloadUnicodeCardImages(): Promise<void> {
+  if (preloadUnicodeCardImagesPromise) {
+    return preloadUnicodeCardImagesPromise;
+  }
+
+  preloadUnicodeCardImagesPromise = Promise.all(
+    UNICODE_CARD_IMAGE_URLS.map((_, id) => loadUnicodeCardImage(id)),
+  ).then(() => undefined);
+
+  return preloadUnicodeCardImagesPromise;
 }

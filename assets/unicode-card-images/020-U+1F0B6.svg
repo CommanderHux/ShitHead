@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="280" viewBox="20 28 200 280">
+  <rect x="26" y="34" width="188" height="268" rx="14" ry="14" fill="white"/>
   <text x="120" y="174.72" text-anchor="middle" dominant-baseline="middle" font-size="280" font-family="Noto Sans Symbols 2, Segoe UI Symbol, Apple Symbols, sans-serif">&#x1F0B6;</text>
 </svg>

@@ -1,6 +1,6 @@
 import { Card, TextShape } from "./visuals/draw.js";
 import { CARD_BACK_ID } from "./visuals/unicodeCards.js";
-import { stack } from "./main.js";
+import { stack, getPlayer } from "./main.js";
 export class Deck {
     x;
     y;
@@ -9,8 +9,8 @@ export class Deck {
     hidden;
     clickable;
     onClick;
-    cards = [];
-    constructor(x, y, cardIDs, visible = 0, hidden = false, clickable = false, onClick) {
+    cards = new Set;
+    constructor(x, y, cardIDs, visible = 3, hidden = false, clickable = false, onClick = () => { }) {
         this.x = x;
         this.y = y;
         this.cardIDs = cardIDs;
@@ -22,28 +22,24 @@ export class Deck {
     }
     updateCards() {
         let max = Math.min(this.cardIDs.length, this.visible);
-        if (this.cards.length == max)
+        if (this.cards.size == max)
             return;
-        if (this.cards.length < max) {
-            this.cards.push(...Array.from({ length: max - this.cards.length }, (_, i) => {
+        if (this.cards.size < max) {
+            this.cards.union(new Set(Array.from({ length: max - this.cards.size }, (_, i) => {
                 let c = new Card(this.visible ?
                     CARD_BACK_ID :
-                    this.cardIDs.at(-1 * i) ?? CARD_BACK_ID, this.x + (this.cards.length + i * 50), this.y, 50, 100);
+                    this.cardIDs.at(-1 - i) ?? CARD_BACK_ID, this.x + (this.cards.size * 50 + i * 50), this.y, 50, 100, this.onClick);
                 if (this.clickable)
                     stack.add(c);
                 return c;
-            }));
+            })));
         }
-        if (this.cards.length > max)
-            this.cards
-                .splice(this.cardIDs.length)
-                .forEach(card => stack.delete(card));
     }
     draw() {
         this.updateCards();
         if (this.cardIDs.length == 0)
             return;
-        this.cards.forEach((card, i) => {
+        this.cards.values().forEach((card, i) => {
             card.id = this.hidden ?
                 CARD_BACK_ID :
                 this.cardIDs.at(-1 - i) ?? CARD_BACK_ID;
@@ -88,19 +84,29 @@ export class Draw extends Deck {
 export class Player {
     x;
     y;
-    cardIDs;
     cards;
+    playVal = -1;
+    play = new Set();
     constructor(x, y, cardIDs) {
         this.x = x;
         this.y = y;
-        this.cardIDs = cardIDs;
         this.cards = {
-            play: new Deck(this.x, this.y, []),
-            down: new Deck(this.x, this.y, this.cardIDs.down, 3, true, false),
-            up: new Deck(this.x, this.y + 100, this.cardIDs.up, 3, false, false),
-            hand: new Deck(this.x, this.y + 200, this.cardIDs.hand, 3, false, true, (card) => {
-                console.log("clicked card");
-                card.y += 10;
+            down: new Deck(this.x, this.y, cardIDs.down, 3, true, false),
+            up: new Deck(this.x, this.y + 25, cardIDs.up, 3, false, false),
+            hand: new Deck(this.x, this.y + 125, cardIDs.hand, 3, false, true, (card) => {
+                let cur = getPlayer();
+                if (card.active) {
+                    cur.play.delete(card);
+                    card.active = false;
+                    if (cur?.play.size == 0)
+                        cur.playVal = -1;
+                    return;
+                }
+                if (cur.playVal < 0 || cur.playVal == card.id % 13) {
+                    cur.play.add(card);
+                    cur.playVal = card.id % 13;
+                    card.active = true;
+                }
             }),
         };
     }

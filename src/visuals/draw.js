@@ -1,5 +1,5 @@
 import { context } from "../main.js";
-import { getCachedUnicodeCardImage, loadUnicodeCardImage, } from "./unicodeCards.js";
+import { getCachedUnicodeCardImage, } from "./unicodeCards.js";
 export class Shape {
     x;
     y;
@@ -71,7 +71,7 @@ export class Card extends Rect {
     onClick;
     suit;
     value;
-    isActive = false;
+    active = false;
     constructor(
     /** card ID */ id, x, y, w, h, onClick = () => { }) {
         super(x, y, w, h, "white", "white");
@@ -83,15 +83,7 @@ export class Card extends Rect {
     path() {
         const unicodeCardImage = getCachedUnicodeCardImage(this.id);
         if (unicodeCardImage) {
-            context.drawImage(unicodeCardImage, this.x, this.y, this.w, this.h);
-            return;
-        }
-        if (unicodeCardImage === undefined) {
-            void loadUnicodeCardImage(this.id).then((loadedImage) => {
-                if (loadedImage) {
-                    this.path();
-                }
-            });
+            context.drawImage(unicodeCardImage, this.x, this.active ? this.y : this.y + 10, this.w, this.h);
         }
     }
 }

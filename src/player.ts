@@ -1,49 +1,43 @@
 import { Card, TextShape } from "./visuals/draw.js";
 import { CARD_BACK_ID } from "./visuals/unicodeCards.js";
-import { stack, context } from "./main.js"
+import { stack, context, getPlayer } from "./main.js"
 
 export class Deck {
-    cards: Card[] = [];
+    cards: Set<Card> = new Set;
     constructor(
         public x: number,
         public y: number,
         public cardIDs: number[],
-        public visible: number = 0,
+        public visible: number = 3,
         public hidden: boolean = false,
         public clickable: boolean = false,
-        public onClick?: (...args: any) => void,
-    ) {this.updateCards()}
-    updateCards(){
-        
+        public onClick: (...args: any) => void = () => { },
+    ) { this.updateCards() }
+    updateCards() {
         let max = Math.min(this.cardIDs.length, this.visible)
-        if(this.cards.length == max) return;
-        if(this.cards.length < max){
-            this.cards.push(...Array.from({length: max - this.cards.length}, (_, i) => {
+        if (this.cards.size == max) return;
+        if (this.cards.size < max) {
+            this.cards.union(new Set(Array.from({ length: max - this.cards.size }, (_, i) => {
                 let c = new Card(
                     this.visible ?
                         CARD_BACK_ID :
-                        this.cardIDs.at(-1 * i) ?? CARD_BACK_ID,
-                    this.x + (this.cards.length + i * 50),
+                        this.cardIDs.at(-1 - i) ?? CARD_BACK_ID,
+                    this.x + (this.cards.size * 50 + i * 50),
                     this.y,
-                    50, 100
+                    50, 100, this.onClick
                 )
-                if(this.clickable) stack.add(c)
+                if (this.clickable) stack.add(c)
                 return c;
-            }))
+            })))
         }
-        if(this.cards.length > max)
-            this.cards
-                .splice(this.cardIDs.length)
-                .forEach( card => stack.delete(card));
-        
     }
     draw() {
         this.updateCards();
-        if(this.cardIDs.length == 0) return;
-        this.cards.forEach((card,i) => {
+        if (this.cardIDs.length == 0) return;
+        this.cards.values().forEach((card, i) => {
             card.id = this.hidden ?
                 CARD_BACK_ID :
-                this.cardIDs.at(-1-i) ?? CARD_BACK_ID
+                this.cardIDs.at(-1 - i) ?? CARD_BACK_ID
             card.draw();
         })
         new TextShape(this.x, this.y, `${this.cardIDs.length}`).draw();
@@ -85,35 +79,46 @@ export class Player {
         up: Deck,
         down: Deck,
         hand: Deck,
-        play: Deck,
     }
+    playVal: number = -1;
+    play: Set<Card> = new Set();
     constructor(
         public x: number,
         public y: number,
-        public cardIDs: {
+        cardIDs: {
             up: number[],
             down: number[],
             hand: number[],
         },
     ) {
         this.cards = {
-            play: new Deck(this.x,this.y,[]),
             down: new Deck(
-                this.x,this.y,
-                this.cardIDs.down,
-                3,true,
+                this.x, this.y,
+                cardIDs.down,
+                3, true,
                 false),
             up: new Deck(
-                this.x,this.y+100,
-                this.cardIDs.up,
-                3,false,
+                this.x, this.y + 25,
+                cardIDs.up,
+                3, false,
                 false),
-            hand: new Deck(this.x,this.y+200,
-                this.cardIDs.hand,
-                3,false,
+            hand: new Deck(
+                this.x, this.y + 125,
+                cardIDs.hand,
+                3, false,
                 true, (card: Card) => {
-                    console.log("clicked card")
-                    card.y += 10;
+                    let cur = getPlayer();
+                    if (card.active) {
+                        cur.play.delete(card);
+                        card.active = false;
+                        if (cur?.play.size == 0) cur.playVal = -1;
+                        return;
+                    }
+                    if (cur.playVal < 0 || cur.playVal == card.id % 13) {
+                        cur.play.add(card);
+                        cur.playVal = card.id % 13;
+                        card.active = true;
+                    }
                 }),
 
         }
