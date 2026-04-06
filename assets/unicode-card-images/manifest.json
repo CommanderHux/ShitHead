@@ -1,0 +1,276 @@
+{
+  "generatedFrom": "src/visuals/draw.ts",
+  "count": 54,
+  "symbols": [
+    {
+      "index": 0,
+      "codePoint": "U+1F0A1",
+      "file": "001-U+1F0A1.svg"
+    },
+    {
+      "index": 1,
+      "codePoint": "U+1F0A2",
+      "file": "002-U+1F0A2.svg"
+    },
+    {
+      "index": 2,
+      "codePoint": "U+1F0A3",
+      "file": "003-U+1F0A3.svg"
+    },
+    {
+      "index": 3,
+      "codePoint": "U+1F0A4",
+      "file": "004-U+1F0A4.svg"
+    },
+    {
+      "index": 4,
+      "codePoint": "U+1F0A5",
+      "file": "005-U+1F0A5.svg"
+    },
+    {
+      "index": 5,
+      "codePoint": "U+1F0A6",
+      "file": "006-U+1F0A6.svg"
+    },
+    {
+      "index": 6,
+      "codePoint": "U+1F0A7",
+      "file": "007-U+1F0A7.svg"
+    },
+    {
+      "index": 7,
+      "codePoint": "U+1F0A8",
+      "file": "008-U+1F0A8.svg"
+    },
+    {
+      "index": 8,
+      "codePoint": "U+1F0A9",
+      "file": "009-U+1F0A9.svg"
+    },
+    {
+      "index": 9,
+      "codePoint": "U+1F0AA",
+      "file": "010-U+1F0AA.svg"
+    },
+    {
+      "index": 10,
+      "codePoint": "U+1F0AB",
+      "file": "011-U+1F0AB.svg"
+    },
+    {
+      "index": 11,
+      "codePoint": "U+1F0AD",
+      "file": "013-U+1F0AD.svg"
+    },
+    {
+      "index": 12,
+      "codePoint": "U+1F0AE",
+      "file": "014-U+1F0AE.svg"
+    },
+    {
+      "index": 13,
+      "codePoint": "U+1F0B1",
+      "file": "015-U+1F0B1.svg"
+    },
+    {
+      "index": 14,
+      "codePoint": "U+1F0B2",
+      "file": "016-U+1F0B2.svg"
+    },
+    {
+      "index": 15,
+      "codePoint": "U+1F0B3",
+      "file": "017-U+1F0B3.svg"
+    },
+    {
+      "index": 16,
+      "codePoint": "U+1F0B4",
+      "file": "018-U+1F0B4.svg"
+    },
+    {
+      "index": 17,
+      "codePoint": "U+1F0B5",
+      "file": "019-U+1F0B5.svg"
+    },
+    {
+      "index": 18,
+      "codePoint": "U+1F0B6",
+      "file": "020-U+1F0B6.svg"
+    },
+    {
+      "index": 19,
+      "codePoint": "U+1F0B7",
+      "file": "021-U+1F0B7.svg"
+    },
+    {
+      "index": 20,
+      "codePoint": "U+1F0B8",
+      "file": "022-U+1F0B8.svg"
+    },
+    {
+      "index": 21,
+      "codePoint": "U+1F0B9",
+      "file": "023-U+1F0B9.svg"
+    },
+    {
+      "index": 22,
+      "codePoint": "U+1F0BA",
+      "file": "024-U+1F0BA.svg"
+    },
+    {
+      "index": 23,
+      "codePoint": "U+1F0BB",
+      "file": "025-U+1F0BB.svg"
+    },
+    {
+      "index": 24,
+      "codePoint": "U+1F0BD",
+      "file": "027-U+1F0BD.svg"
+    },
+    {
+      "index": 25,
+      "codePoint": "U+1F0BE",
+      "file": "028-U+1F0BE.svg"
+    },
+    {
+      "index": 26,
+      "codePoint": "U+1F0C1",
+      "file": "030-U+1F0C1.svg"
+    },
+    {
+      "index": 27,
+      "codePoint": "U+1F0C2",
+      "file": "031-U+1F0C2.svg"
+    },
+    {
+      "index": 28,
+      "codePoint": "U+1F0C3",
+      "file": "032-U+1F0C3.svg"
+    },
+    {
+      "index": 29,
+      "codePoint": "U+1F0C4",
+      "file": "033-U+1F0C4.svg"
+    },
+    {
+      "index": 30,
+      "codePoint": "U+1F0C5",
+      "file": "034-U+1F0C5.svg"
+    },
+    {
+      "index": 31,
+      "codePoint": "U+1F0C6",
+      "file": "035-U+1F0C6.svg"
+    },
+    {
+      "index": 32,
+      "codePoint": "U+1F0C7",
+      "file": "036-U+1F0C7.svg"
+    },
+    {
+      "index": 33,
+      "codePoint": "U+1F0C8",
+      "file": "037-U+1F0C8.svg"
+    },
+    {
+      "index": 34,
+      "codePoint": "U+1F0C9",
+      "file": "038-U+1F0C9.svg"
+    },
+    {
+      "index": 35,
+      "codePoint": "U+1F0CA",
+      "file": "039-U+1F0CA.svg"
+    },
+    {
+      "index": 36,
+      "codePoint": "U+1F0CB",
+      "file": "040-U+1F0CB.svg"
+    },
+    {
+      "index": 37,
+      "codePoint": "U+1F0CD",
+      "file": "042-U+1F0CD.svg"
+    },
+    {
+      "index": 38,
+      "codePoint": "U+1F0CE",
+      "file": "043-U+1F0CE.svg"
+    },
+    {
+      "index": 39,
+      "codePoint": "U+1F0D1",
+      "file": "045-U+1F0D1.svg"
+    },
+    {
+      "index": 40,
+      "codePoint": "U+1F0D2",
+      "file": "046-U+1F0D2.svg"
+    },
+    {
+      "index": 41,
+      "codePoint": "U+1F0D3",
+      "file": "047-U+1F0D3.svg"
+    },
+    {
+      "index": 42,
+      "codePoint": "U+1F0D4",
+      "file": "048-U+1F0D4.svg"
+    },
+    {
+      "index": 43,
+      "codePoint": "U+1F0D5",
+      "file": "049-U+1F0D5.svg"
+    },
+    {
+      "index": 44,
+      "codePoint": "U+1F0D6",
+      "file": "050-U+1F0D6.svg"
+    },
+    {
+      "index": 45,
+      "codePoint": "U+1F0D7",
+      "file": "051-U+1F0D7.svg"
+    },
+    {
+      "index": 46,
+      "codePoint": "U+1F0D8",
+      "file": "052-U+1F0D8.svg"
+    },
+    {
+      "index": 47,
+      "codePoint": "U+1F0D9",
+      "file": "053-U+1F0D9.svg"
+    },
+    {
+      "index": 48,
+      "codePoint": "U+1F0DA",
+      "file": "054-U+1F0DA.svg"
+    },
+    {
+      "index": 49,
+      "codePoint": "U+1F0DB",
+      "file": "055-U+1F0DB.svg"
+    },
+    {
+      "index": 50,
+      "codePoint": "U+1F0DD",
+      "file": "057-U+1F0DD.svg"
+    },
+    {
+      "index": 51,
+      "codePoint": "U+1F0DE",
+      "file": "058-U+1F0DE.svg"
+    },
+    {
+      "index": 52,
+      "codePoint": "U+1F0DF",
+      "file": "059-U+1F0DF.svg"
+    },
+    {
+      "index": 53,
+      "codePoint": "U+1F0A0",
+      "file": "060-U+1F0A0.svg"
+    }
+  ]
+}
