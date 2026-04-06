@@ -20,21 +20,31 @@ function SetupCanvas() {
 }
 export let stack = new Set([]);
 SetupCanvas();
-export let draw = new Draw(50, 100);
-export let discard = new Discard(125, 100);
+export let drawPile = new Draw(50, 100);
+export let discardPile = new Discard(125, 100);
 let currentPlayer = 0;
 let players = [
     new Player(100, 200, {
-        up: draw.getCards(3),
-        down: draw.getCards(3),
-        hand: draw.getCards(3),
+        up: drawPile.getCards(3),
+        down: drawPile.getCards(3),
+        hand: drawPile.getCards(3),
     })
 ];
-let playButton = new TextBox(50, 350, 50, 24, "Play");
+let playButton = new TextBox(40, 350, 50, 25, "Play");
+let sortButton = new TextBox(40, 380, 50, 25, "Sort");
 stack.add(playButton);
+stack.add(sortButton);
+sortButton.onDown = () => {
+    sortButton.f = "red";
+    let cur = getPlayer();
+    cur.hand.sort(true);
+};
+sortButton.onUp = () => {
+    sortButton.f = "black";
+};
 playButton.onDown = () => {
     playButton.f = "red";
-    discard.playHand();
+    discardPile.playHand();
 };
 playButton.onUp = () => {
     playButton.f = "black";
@@ -47,9 +57,10 @@ async function boot() {
 function update() {
     context.clearRect(0, 0, canvas.width, canvas.height);
     players[0]?.draw();
-    draw.draw();
-    discard.draw();
+    drawPile.draw();
+    discardPile.draw();
     playButton.draw();
+    sortButton.draw();
     requestAnimationFrame(update);
 }
 export function onMouseDown(mouse) {
@@ -59,10 +70,7 @@ export function onMouseDown(mouse) {
     for (const shape of shapes) {
         if (!inRange(x, y, shape.x, shape.y, shape.w, shape.h))
             continue;
-        if (shape instanceof Card)
-            shape.onDown(shape);
-        else if (shape instanceof Rect)
-            shape.onDown();
+        shape.onDown();
         break;
     }
 }

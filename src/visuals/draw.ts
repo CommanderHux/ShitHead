@@ -33,10 +33,11 @@ export class TextShape extends Shape {
     x: number,
     y: number,
     /** rendered text */ public txt: string,
-    f: string = "black",
-    s: string = "black",
     public a: CanvasTextAlign = "left",
     public b: CanvasTextBaseline = "top",
+    f: string = "black",
+    s: string = "black",
+
   ) { super(x, y, f, s) }
   path(): void {
     context.textAlign = this.a;
@@ -101,12 +102,13 @@ export class TextBox extends Rect {
   ) { super(x, y, w, h, f, s) }
   path(): void {
     new Rect(this.x, this.y, this.w, this.h, this.f, this.s).draw();
-    new TextShape(this.x + this.w / 2, this.y + this.h / 2, this.txt, this.txtf, this.txts, "center", "middle").draw()
+    new TextShape(this.x + this.w / 2, this.y + this.h / 2, this.txt, "center", "middle",this.txtf, this.txts).draw()
   }
 }
 export class Card extends Rect {
   suit: number;
   value: number;
+  cardID: number;
   active: boolean = false;
   constructor(
     /** card ID */ public id: number,
@@ -118,6 +120,7 @@ export class Card extends Rect {
     onUp: (...args: any) => any = () => { },
   ) {
     super(x, y, w, h, "white", "white", onDown, onUp);
+    this.cardID = id;
     this.suit = id % 4;
     this.value = id % 13;
   }

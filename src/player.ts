@@ -3,11 +3,9 @@ import { getPlayer, getElement } from "./main.js"
 import { Deck } from "./deck.js";
 
 export class Player {
-    cards: {
-        up: Deck,
-        down: Deck,
-        hand: Deck,
-    }
+    up: Deck;
+    down: Deck;
+    hand: Deck;
     play: Set<number> = new Set();
     constructor(
         public x: number,
@@ -16,42 +14,51 @@ export class Player {
             up: number[],
             down: number[],
             hand: number[],
-        },
-    ) {
-        this.cards = {
-            down: new Deck(
-                this.x, this.y,
-                cardIDs.down,
-                3, true,
-                false),
-            up: new Deck(
-                this.x, this.y + 25,
-                cardIDs.up,
-                3, false,
-                false),
-            hand: new Deck(
-                this.x, this.y + 125,
-                cardIDs.hand,
-                3, false,
-                true, (card: Card) => {
-                    let cur = getPlayer();
-                    if (card.active) {
-                        cur.play.delete(card.id);
-                        card.active = false;
-                        return;
-                    }
-                    if (cur.play.size == 0 || (getElement(cur.play) ?? -1) % 13 == card.id % 13) {
-                        cur.play.add(card.id);
-                        card.active = true;
-                    }
-                }),
-
         }
+    ) {
+        let click = (cardID: number) => {
+                let cur = getPlayer();
+                let Hand = cur.current();
+                let card = Hand.cards.find((c) => c.cardID === cardID);
+                if (card == null) return;
+                if (card.active) {
+                    cur.play.delete(cardID);
+                    card.active = false;
+                    return;
+                }
+                if (cur.play.size == 0 || (getElement(cur.play) ?? -1) % 13 == cardID % 13) {
+                    cur.play.add(cardID);
+                    card.active = true;
+                }
+            }
+        this.down = new Deck(
+            this.x, this.y,
+            cardIDs.down,
+            3, true,
+            false, click
+        );
+        this.up = new Deck(
+            this.x, this.y + 25,
+            cardIDs.up,
+            3, false,
+            false, click
+        );
+        this.hand = new Deck(
+            this.x, this.y + 125,
+            cardIDs.hand,
+            Infinity, false,
+            true, click
+        );
     }
     draw() {
-        this.cards.down.draw()
-        this.cards.up.draw()
-        this.cards.hand.draw();
+        this.down.draw()
+        this.up.draw()
+        this.hand.draw();
+    }
+    current(): Deck{
+        if(this.hand.cardIDs.length > 0) return this.hand;
+        if(this.up.cardIDs.length > 0) return this.up;
+        else return this.down;
     }
 }
 export class AI extends Player {}
