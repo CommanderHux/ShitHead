@@ -1,5 +1,6 @@
-import { Deck, Draw, Player, } from "./player.js"
-import { Shape, Rect, Circle, Card } from "./visuals/draw.js";
+import { Player, } from "./player.js"
+import { Deck, Discard, Draw } from "./deck.js"
+import { Shape, Rect, Circle, Card, TextBox } from "./visuals/draw.js";
 import { preloadUnicodeCardImages } from "./visuals/unicodeCards.js";
 
 
@@ -18,7 +19,8 @@ function SetupCanvas() {
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  canvas.addEventListener("mouseup", onMouseDown)
+  canvas.addEventListener("mousedown", onMouseDown)
+  canvas.addEventListener("mouseup", onMouseUp)
 }
 
 
@@ -26,7 +28,7 @@ function SetupCanvas() {
 export let stack: Set<Rect> = new Set([]);
 SetupCanvas();
 export let draw = new Draw(50, 100);
-export let discard = new Deck(125,100,[])
+export let discard = new Discard(125,100);
 let currentPlayer: number = 0;
 let players = [
   new Player(100, 200, {
@@ -36,21 +38,16 @@ let players = [
   })
 ]
 
-let deal = new Rect(50,450,50,24);
+let playButton = new TextBox(50,350,50,24,"Play");
 
 
-stack.add(deal)
-deal.onClick = () => {
-  deal.f = deal.f == "red" ? "black" : "red";
-  let cur = getPlayer();
-  if(cur.play.size > 0){
-    //Fix set implementation
-    let vals = cur.play;
-    discard.cardIDs.push(...vals.map(c => c.id))
-    cur.cards.hand.cards.difference(vals)
-    cur.play.clear();
-    
-  }
+stack.add(playButton)
+playButton.onDown = () => {
+  playButton.f = "red";
+  discard.playHand();
+}
+playButton.onUp = () => {
+  playButton.f = "black"
 }
 
 
@@ -64,24 +61,36 @@ function update(){
   players[0]?.draw();
   draw.draw();
   discard.draw();
-  deal.draw();
+  playButton.draw();
   requestAnimationFrame(update);
 }
-//When deal is pressed, add cards to everyone's hand
-//Then draw the hand
+
 export function onMouseDown(mouse: MouseEvent) {
   let x = mouse.offsetX / dpr;
   let y = mouse.offsetY / dpr;
-  [...stack.values()].forEach(shape => {
-    if(inRange(x,y,shape.x,shape.y,shape.w,shape.h)){
-      if(shape instanceof Card)
-        shape.onClick(shape);
-      else if(shape instanceof Rect){
-        shape.onClick();
-      }
-      new Circle(x,y,5).draw();
-    }
-  })
+  const shapes = [...stack.values()].reverse();
+  for (const shape of shapes) {
+    if (!inRange(x, y, shape.x, shape.y, shape.w, shape.h)) continue;
+    if (shape instanceof Card)
+      shape.onDown(shape);
+    else if (shape instanceof Rect)
+      shape.onDown();
+    break;
+  }
+};
+
+export function onMouseUp(mouse: MouseEvent) {
+  let x = mouse.offsetX / dpr;
+  let y = mouse.offsetY / dpr;
+  const shapes = [...stack.values()].reverse();
+  for (const shape of shapes) {
+    if (!inRange(x, y, shape.x, shape.y, shape.w, shape.h)) continue;
+    if (shape instanceof Card)
+      shape.onUp(shape);
+    else if (shape instanceof Rect)
+      shape.onUp();
+    break;
+  }
 };
 
 function inRange(
@@ -102,4 +111,13 @@ export function getPlayer(): Player{
   let cur = players[currentPlayer]
   if (cur == null) throw Error(`No Current Player, ${currentPlayer}, found ${cur}`)
   return cur;
+}
+export function getElement<T>(set: Set<T>): T{
+  if(set.size < 0) throw Error("Cannot get element of size 0 Set")
+  let v = set.values().next().value
+  if(v == null) throw Error(`Expected element in Set, ${set}, found ${v}`)
+  return v;
+}
+export function nextPlayer() {
+  currentPlayer = (currentPlayer + 1) % players.length;
 }

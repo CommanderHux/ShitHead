@@ -5,18 +5,24 @@ export class Shape {
     y;
     f;
     s;
-    onClick;
+    onDown;
+    onUp;
+    onHover;
     constructor(
     /** (px) */ x, 
     /** (px) */ y, 
     /** fill colour */ f = "black", 
     /** stroke colour */ s = "black", 
-    /** click Behaviour */ onClick = () => { }) {
+    /** click Behaviour */ onDown = () => { }, 
+    /** mouse up behaviour */ onUp = () => { }, 
+    /** mouse hover behaviour */ onHover = () => { }) {
         this.x = x;
         this.y = y;
         this.f = f;
         this.s = s;
-        this.onClick = onClick;
+        this.onDown = onDown;
+        this.onUp = onUp;
+        this.onHover = onHover;
     }
     draw() {
         context.beginPath();
@@ -32,12 +38,18 @@ export class Shape {
 }
 export class TextShape extends Shape {
     txt;
+    a;
+    b;
     constructor(x, y, 
-    /** rendered text */ txt, f = "black", s = "black") {
+    /** rendered text */ txt, f = "black", s = "black", a = "left", b = "top") {
         super(x, y, f, s);
         this.txt = txt;
+        this.a = a;
+        this.b = b;
     }
     path() {
+        context.textAlign = this.a;
+        context.textBaseline = this.b;
         context.fillText(this.txt, this.x, this.y);
     }
 }
@@ -57,8 +69,8 @@ export class Rect extends Shape {
     h;
     constructor(x, y, 
     /** width (px) */ w = 10, 
-    /** height (px) */ h = 10, f = "black", s = "black") {
-        super(x, y, f, s);
+    /** height (px) */ h = 10, f = "black", s = "black", onDown = () => { }, onUp = () => { }, onHover = () => { }) {
+        super(x, y, f, s, onDown, onUp, onHover);
         this.w = w;
         this.h = h;
     }
@@ -66,17 +78,30 @@ export class Rect extends Shape {
         context.rect(this.x, this.y, this.w, this.h);
     }
 }
+export class TextBox extends Rect {
+    txt;
+    txtf;
+    txts;
+    constructor(x, y, w = 10, h = 10, txt, f = "black", s = "black", txtf = "white", txts = "white") {
+        super(x, y, w, h, f, s);
+        this.txt = txt;
+        this.txtf = txtf;
+        this.txts = txts;
+    }
+    path() {
+        new Rect(this.x, this.y, this.w, this.h, this.f, this.s).draw();
+        new TextShape(this.x + this.w / 2, this.y + this.h / 2, this.txt, this.txtf, this.txts, "center", "middle").draw();
+    }
+}
 export class Card extends Rect {
     id;
-    onClick;
     suit;
     value;
     active = false;
     constructor(
-    /** card ID */ id, x, y, w, h, onClick = () => { }) {
-        super(x, y, w, h, "white", "white");
+    /** card ID */ id, x, y, w, h, onDown = () => { }, onUp = () => { }, onHover = () => { }) {
+        super(x, y, w, h, "white", "white", onDown, onUp, onHover);
         this.id = id;
-        this.onClick = onClick;
         this.suit = id % 4;
         this.value = id % 13;
     }
