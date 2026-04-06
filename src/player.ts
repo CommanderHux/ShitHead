@@ -14,10 +14,9 @@ export class Deck {
         public onClick?: (id: number) => void,
     ) {this.updateCards()}
     updateCards(){
-        if (this.cardIDs.length >= this.visible) return;
-        let max = Math.max(this.cardIDs.length, this.visible)
+        
+        let max = Math.min(this.cardIDs.length, this.visible)
         if(this.cards.length == max) return;
-
         if(this.cards.length < max){
             this.cards.push(...Array.from({length: max - this.cards.length}, (_, i) => {
                 let c = new Card(
@@ -41,7 +40,7 @@ export class Deck {
     draw() {
         this.updateCards();
         if(this.cardIDs.length == 0) return;
-
+        console.log(this.cards.length)
         this.cards.forEach((card,i) => {
             card.id = this.hidden ?
                 CARD_BACK_ID :

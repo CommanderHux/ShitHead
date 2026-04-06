@@ -39,7 +39,7 @@ export function onMouseDown(mouse: MouseEvent) {
   [...stack.values()].forEach(card => {
     if(inRange(x,y,card.x,card.y,card.w,card.h)){
       card.onClick(card.id);
-      new Circle(x,y,5);
+      new Circle(x,y,5).draw();
     }
   })
 };
