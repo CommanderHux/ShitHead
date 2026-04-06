@@ -2,9 +2,9 @@
   // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     // Browser-friendly JavaScript for GitHub Pages
-    "target": "ES2020",
-    "module": "ES2020",
-    "lib": ["DOM", "ES2020"],
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["DOM", "ES2022"],
 
     // Other Outputs
     "sourceMap": true,

@@ -1,27 +1,52 @@
-import { Deck, Player } from "./player.js";
-import { initMouse, mouse } from "./input/mouse.js";
+import { Draw, Player, } from "./player.js";
+import { Circle } from "./visuals/draw.js";
 export const canvas = document.getElementById("canvas");
 const cxt = canvas.getContext("2d");
 if (!cxt)
     throw new Error("couldn't find canvas context");
 export const context = cxt;
-initMouse(canvas);
-window.mouse = mouse;
 const dpr = window.devicePixelRatio || 1;
 const rect = canvas.getBoundingClientRect();
-canvas.width = Math.round(rect.width * dpr);
-canvas.height = Math.round(rect.height * dpr);
-context.setTransform(dpr, 0, 0, dpr, 0, 0);
-context.imageSmoothingEnabled = true;
-context.imageSmoothingQuality = "high";
-let deck = new Deck(50, 0);
-let player = new Player(100, 100, {
-    up: deck.getCards(3),
-    down: deck.getCards(3),
-    hand: deck.getCards(3),
+function SetupCanvas() {
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    canvas.addEventListener("mouseup", onMouseDown);
+}
+export let stack = new Set([]);
+SetupCanvas();
+let draw = new Draw(50, 100);
+let player = new Player(100, 200, {
+    up: draw.getCards(3),
+    down: draw.getCards(3),
+    hand: draw.getCards(3),
 });
 player.draw();
-deck.draw();
+draw.draw();
 //When deal is pressed, add cards to everyone's hand
 //Then draw the hand
+export function onMouseDown(mouse) {
+    let x = mouse.offsetX / dpr;
+    let y = mouse.offsetY / dpr;
+    [...stack.values()].forEach(card => {
+        if (inRange(x, y, card.x, card.y, card.w, card.h)) {
+            card.onClick(card.id);
+            new Circle(x, y, 5);
+        }
+    });
+}
+;
+function inRange(x, y, xi, yi, w, h) {
+    if (x < xi)
+        return false;
+    if (y < yi)
+        return false;
+    if (x > xi + w)
+        return false;
+    if (y > yi + h)
+        return false;
+    return true;
+}
 //# sourceMappingURL=main.js.map
