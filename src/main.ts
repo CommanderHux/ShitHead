@@ -29,6 +29,7 @@ export let stack: Set<Rect> = new Set([]);
 SetupCanvas();
 export let drawPile = new Draw(50, 100);
 export let discardPile = new Discard(125,100);
+drawPile.onDown = () => discardPile.playDraw();
 let currentPlayer: number = 0;
 let players = [
   new Player(100, 200, {

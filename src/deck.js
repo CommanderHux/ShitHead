@@ -113,7 +113,22 @@ export class Discard extends Deck {
         this.onDown = this.pickUp;
         this.updateCards();
     }
-    pickUp() {
+    pickUp(value, lastValue) {
+        if (value != null && lastValue != null) {
+            /** 2 goes on anything */
+            if (value == 0)
+                return;
+            /** 10 goes on anything */
+            if (value == 8)
+                return;
+            /** if last card is 7 play under */
+            if (lastValue == 5) {
+                if (value <= lastValue)
+                    return;
+            }
+            else if (value >= lastValue)
+                return;
+        }
         let cur = getPlayer();
         let Hand = cur.current();
         cur.hand.cardIDs.push(...discardPile.cardIDs);
@@ -144,16 +159,20 @@ export class Discard extends Deck {
                 else
                     cur.up.changeClickable(true);
             }
-            /** Pickup Rule */
-            if (value < lastValue) {
-                this.pickUp();
-            }
+            this.pickUp(value, lastValue);
             if (cur.hand.cardIDs.length < 3 && drawPile.cardIDs.length > 0) {
                 let deficit = Math.min(3 - cur.hand.cardIDs.length, drawPile.cardIDs.length);
                 cur.hand.cardIDs.push(...drawPile.getCards(deficit));
             }
         }
         nextPlayer();
+    }
+    playDraw() {
+        let id = drawPile.getCard();
+        let value = id % 13;
+        let lastValue = ((this.cardIDs.at(-1) ?? -1) % 13);
+        discardPile.cardIDs.push(id);
+        this.pickUp(value, lastValue);
     }
 }
 //# sourceMappingURL=deck.js.map
