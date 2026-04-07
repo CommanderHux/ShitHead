@@ -119,8 +119,10 @@ export class Discard extends Deck {
             if (value == 0)
                 return;
             /** 10 goes on anything */
-            if (value == 8)
+            if (value == 8) {
+                this.burn();
                 return;
+            }
             /** if last card is 7 play under */
             if (lastValue == 5) {
                 if (value <= lastValue)
@@ -138,9 +140,7 @@ export class Discard extends Deck {
             cur.down.changeClickable(false);
         }
         discardPile.cardIDs = [];
-        this.updateCards();
-        cur.hand.updateCards();
-        Hand.updateCards();
+        nextPlayer();
     }
     playHand() {
         let cur = getPlayer();
@@ -165,7 +165,6 @@ export class Discard extends Deck {
                 cur.hand.cardIDs.push(...drawPile.getCards(deficit));
             }
         }
-        nextPlayer();
     }
     playDraw() {
         let id = drawPile.getCard();
@@ -173,6 +172,9 @@ export class Discard extends Deck {
         let lastValue = ((this.cardIDs.at(-1) ?? -1) % 13);
         discardPile.cardIDs.push(id);
         this.pickUp(value, lastValue);
+    }
+    burn() {
+        discardPile.cardIDs = [];
     }
 }
 //# sourceMappingURL=deck.js.map
