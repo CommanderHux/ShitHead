@@ -1,4 +1,4 @@
-import { Player, } from "./player.js";
+import { AI, Player } from "./player.js";
 import { Discard, Draw } from "./deck.js";
 import { Rect, Card, TextBox } from "./visuals/draw.js";
 import { preloadUnicodeCardImages } from "./visuals/unicodeCards.js";
@@ -22,30 +22,48 @@ export let stack = new Set([]);
 SetupCanvas();
 export let drawPile = new Draw(50, 100);
 export let discardPile = new Discard(125, 100);
-drawPile.onDown = () => discardPile.playDraw();
 let currentPlayer = 0;
+let aiTurnScheduled = false;
 let players = [
     new Player(100, 200, {
         up: drawPile.getCards(3),
         down: drawPile.getCards(3),
         hand: drawPile.getCards(3),
-    })
+    }),
+    new AI(300, 200, {
+        up: drawPile.getCards(3),
+        down: drawPile.getCards(3),
+        hand: drawPile.getCards(3),
+    }),
 ];
+drawPile.onDown = () => {
+    if (getPlayer() instanceof AI)
+        return;
+    const before = currentPlayer;
+    discardPile.playDraw();
+    finishTurn(before);
+};
 let playButton = new TextBox(40, 350, 50, 25, "Play");
 let sortButton = new TextBox(40, 380, 50, 25, "Sort");
 stack.add(playButton);
 stack.add(sortButton);
 sortButton.onDown = () => {
+    if (getPlayer() instanceof AI)
+        return;
     sortButton.f = "red";
     let cur = getPlayer();
-    cur.hand.sort(true);
+    cur.hand.sort();
 };
 sortButton.onUp = () => {
     sortButton.f = "black";
 };
 playButton.onDown = () => {
+    if (getPlayer() instanceof AI)
+        return;
     playButton.f = "red";
+    const before = currentPlayer;
     discardPile.playHand();
+    finishTurn(before);
 };
 playButton.onUp = () => {
     playButton.f = "black";
@@ -57,7 +75,7 @@ async function boot() {
 }
 function update() {
     context.clearRect(0, 0, canvas.width, canvas.height);
-    players[0]?.draw();
+    players.forEach((player) => player.draw());
     drawPile.draw();
     discardPile.draw();
     playButton.draw();
@@ -65,11 +83,14 @@ function update() {
     requestAnimationFrame(update);
 }
 export function onMouseDown(mouse) {
+    if (getPlayer() instanceof AI)
+        return;
     let x = mouse.offsetX / dpr;
     let y = mouse.offsetY / dpr;
     const shapes = [...stack.values()].reverse();
     for (const shape of shapes) {
-        if (!inRange(x, y, shape.x, shape.y, shape.w, shape.h))
+        const bounds = getShapeBounds(shape);
+        if (!inRange(x, y, bounds.x, bounds.y, bounds.w, bounds.h))
             continue;
         shape.onDown();
         break;
@@ -81,7 +102,8 @@ export function onMouseUp(mouse) {
     let y = mouse.offsetY / dpr;
     const shapes = [...stack.values()].reverse();
     for (const shape of shapes) {
-        if (!inRange(x, y, shape.x, shape.y, shape.w, shape.h))
+        const bounds = getShapeBounds(shape);
+        if (!inRange(x, y, bounds.x, bounds.y, bounds.w, bounds.h))
             continue;
         if (shape instanceof Card)
             shape.onUp(shape);
@@ -91,6 +113,17 @@ export function onMouseUp(mouse) {
     }
 }
 ;
+function getShapeBounds(shape) {
+    if (shape instanceof Card) {
+        return {
+            x: shape.x,
+            y: shape.active ? shape.y : shape.y + 10,
+            w: shape.w,
+            h: shape.h,
+        };
+    }
+    return { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
+}
 function inRange(x, y, xi, yi, w, h) {
     if (x < xi)
         return false;
@@ -116,7 +149,33 @@ export function getElement(set) {
         throw Error(`Expected element in Set, ${set}, found ${v}`);
     return v;
 }
+function finishTurn(beforePlayer) {
+    if (currentPlayer === beforePlayer)
+        nextPlayer();
+}
+function runAiTurns() {
+    if (!(getPlayer() instanceof AI) || aiTurnScheduled)
+        return;
+    aiTurnScheduled = true;
+    window.setTimeout(() => {
+        aiTurnScheduled = false;
+        if (!(getPlayer() instanceof AI))
+            return;
+        const ai = getPlayer();
+        if (!(ai instanceof AI))
+            return;
+        const before = currentPlayer;
+        ai.turn();
+        if (currentPlayer === before && drawPile.cardIDs.length > 0) {
+            discardPile.playDraw();
+        }
+        if (currentPlayer === before)
+            nextPlayer();
+    }, 350);
+}
 export function nextPlayer() {
     currentPlayer = (currentPlayer + 1) % players.length;
+    if (getPlayer() instanceof AI)
+        runAiTurns();
 }
 //# sourceMappingURL=main.js.map

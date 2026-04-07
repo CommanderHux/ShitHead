@@ -1,6 +1,8 @@
 import { Card, TextShape } from "./visuals/draw.js";
 import { CARD_BACK_ID } from "./visuals/unicodeCards.js";
 import { discardPile, drawPile, getPlayer, stack, nextPlayer } from "./main.js"
+import { getIdValue } from "./player.js";
+
 
 export class Deck {
     /** Visual Cards */
@@ -31,8 +33,8 @@ export class Deck {
                     this.visible ?
                         CARD_BACK_ID :
                         this.cardIDs.at(-1 - i) ?? CARD_BACK_ID,
-                    this.x + (this.cards.length * 50 + i * 50),
-                    this.y,
+                    this.x + ((this.cards.length + i) % 5) * 20,
+                    this.y + (Math.floor((this.cards.length + i)/5) ) * 20,
                     50, 100
                 )
                 if (this.clickable) stack.add(c)
@@ -62,8 +64,9 @@ export class Deck {
         })
         new TextShape(this.x, this.y + 20, `${this.cardIDs.length}`, "right", "top", "black", "black").draw();
     }
-    sort(byvalue?: boolean) {
-        if (byvalue) this.cardIDs.sort((a, b) => (b % 13) - (a % 13))
+    sort(byvalue: boolean = true) {
+        this.cards.forEach(card => card.active = false)
+        if (byvalue) this.cardIDs.sort((a, b) => getIdValue(b) - getIdValue(a))
         else this.cardIDs.sort((a, b) => b - a);
     }
     randomise() {
@@ -104,42 +107,40 @@ export class Discard extends Deck {
         this.updateCards();
     }
     pickUp(value?: number, lastValue?: number) {
-        if (value != null && lastValue != null) {
-            /** 2 goes on anything */
-            if (value == 0) return;
-            /** 10 goes on anything */
-            if (value == 8) {
-                this.burn();
-                return;
-            }
-            /** if last card is 7 play under */
-            if (lastValue == 5)
-                {if(value <= lastValue) return;}
-            else if(value >= lastValue) return;
+        const cur = getPlayer();
+        const hand = cur.current();
+        hand.cards.forEach((card) => card.active = false);
+        cur.play.clear();
+
+        // Manual pickup (clicking discard) always collects the pile.
+        if (value == null || lastValue == null) {
+            this.moveDiscardToHand(cur);
+            nextPlayer();
+            return;
         }
 
-        let cur = getPlayer();
-        let Hand = cur.current();
-        cur.hand.cardIDs.push(...discardPile.cardIDs);
-        Hand.cards.forEach((card) => card.active = false)
-        if (cur.hand.cardIDs.length > 0) {
-            cur.up.changeClickable(false);
-            cur.down.changeClickable(false);
+        const validPlacement = PlacementRules.some((rule) => rule(value, lastValue));
+        if (!validPlacement) {
+            this.moveDiscardToHand(cur);
+            nextPlayer();
+            return;
         }
-        discardPile.cardIDs = [];
+
+        const shouldBurn = BurnRules.some((rule) => rule(this.cardIDs));
+        if (shouldBurn) this.burn();
         nextPlayer();
     }
     playHand() {
         let cur = getPlayer();
         if (cur.play.size > 0) {
-            let Hand = cur.current();
+            let hand = cur.current();
             let ids = [...cur.play.values()];
-            let value = (ids[0] ?? -1) % 13;
-            let lastValue = ((this.cardIDs.at(-1) ?? -1) % 13)
+            let value = getIdValue(ids[0] ?? -1);
+            let lastValue = getIdValue(this.cardIDs.at(-1) ?? -1)
 
             discardPile.cardIDs.push(...ids)
-            Hand.cardIDs = Hand.cardIDs.filter((id) => !ids.includes(id))
-            Hand.cards.forEach((card) => card.active = false)
+            hand.cardIDs = hand.cardIDs.filter((id) => !ids.includes(id))
+            hand.cards.forEach((card) => card.active = false)
             cur.play.clear();
             
             if (cur.hand.cardIDs.length == 0) {
@@ -160,13 +161,45 @@ export class Discard extends Deck {
     }
     playDraw() {
         let id = drawPile.getCard();
-        let value = id % 13;
-        let lastValue = ((this.cardIDs.at(-1) ?? -1) % 13)
+        let value = getIdValue(id);
+        let lastValue = getIdValue((this.cardIDs.at(-1) ?? -1))
         discardPile.cardIDs.push(id);
         this.pickUp(value,lastValue);
     }
+    
     burn(){
         discardPile.cardIDs = [];
     }
+    private moveDiscardToHand(cur = getPlayer()) {
+        cur.hand.cardIDs.push(...discardPile.cardIDs);
+        if (cur.hand.cardIDs.length > 0) {
+            cur.up.changeClickable(false);
+            cur.down.changeClickable(false);
+        }
+        this.burn();
+    }
 
 }
+/** All valid combinations of last and current value */
+export const PlacementRules: Array<(value: number, lastValue: number) => boolean> = [
+    /** 2 goes on anything */
+    (value: number,lastValue: number) => value == 0,
+    /** 10 goes on anything */
+    (value: number,lastValue: number) => value == 8,
+    /** if last card is 7 play under */
+    (value: number,lastValue: number) =>
+        lastValue == 5 ? 
+            value <= lastValue :
+            value >= lastValue
+    ,
+]
+/** All cases of Burning */
+export const BurnRules: Array<(ids: number[]) => boolean> = [
+    /** 4 Cards in a row */
+    (ids) => {
+        if (ids.length < 4) return false;
+        return new Set(ids.slice(-4).map((id) => getIdValue(id))).size == 1;
+    },
+    /** Last Card is a 10 */
+    (ids) => getIdValue(ids.at(-1)) == 8
+]
