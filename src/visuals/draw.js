@@ -1,4 +1,5 @@
 import { context } from "../main.js";
+import { CARD_H, CARD_SELECTED_OFFSET_Y, CARD_W } from "./cardSize.js";
 import { getCachedUnicodeCardImage, } from "./unicodeCards.js";
 export class Shape {
     x;
@@ -97,7 +98,7 @@ export class Card extends Rect {
     cardID;
     active = false;
     constructor(
-    /** card ID */ id, x, y, w, h, onDown = () => { }, onUp = () => { }) {
+    /** card ID */ id, x, y, w = CARD_W, h = CARD_H, onDown = () => { }, onUp = () => { }) {
         super(x, y, w, h, "white", "white", onDown, onUp);
         this.id = id;
         this.cardID = id;
@@ -107,7 +108,7 @@ export class Card extends Rect {
     path() {
         const unicodeCardImage = getCachedUnicodeCardImage(this.id);
         if (unicodeCardImage) {
-            context.drawImage(unicodeCardImage, this.x, this.active ? this.y : this.y + 10, this.w, this.h);
+            context.drawImage(unicodeCardImage, this.x, this.active ? this.y : this.y + CARD_SELECTED_OFFSET_Y, this.w, this.h);
         }
     }
 }

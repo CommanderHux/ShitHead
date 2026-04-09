@@ -66,17 +66,18 @@ export const PLAYING_CARD_CHARACTERS = UNICODE_CARD_IMAGE_FILES.map((file) => {
 });
 export const CARD_BACK_ID = PLAYING_CARD_CHARACTERS.length - 1;
 
-const UNICODE_CARD_IMAGE_BASE_URL = new URL(
-  "../../assets/unicode-card-images/",
-  import.meta.url,
-);
-const UNICODE_CARD_IMAGE_CACHE_BUST = "2026-04-06-white-bg";
+const UNICODE_CARD_IMAGE_MODULES = import.meta.glob(
+  "../../assets/unicode-card-images/*.svg",
+  { eager: true, import: "default" },
+) as Record<string, string>;
+const UNICODE_CARD_IMAGE_URL_BY_FILE = new Map<string, string>();
+for (const [modulePath, moduleUrl] of Object.entries(UNICODE_CARD_IMAGE_MODULES)) {
+  const filename = modulePath.split("/").at(-1);
+  if (!filename) continue;
+  UNICODE_CARD_IMAGE_URL_BY_FILE.set(filename, moduleUrl);
+}
 const UNICODE_CARD_IMAGE_URLS: Array<string | null> = UNICODE_CARD_IMAGE_FILES.map(
-  (filename) => {
-    const url = new URL(filename, UNICODE_CARD_IMAGE_BASE_URL);
-    url.searchParams.set("v", UNICODE_CARD_IMAGE_CACHE_BUST);
-    return url.href;
-  },
+  (filename) => UNICODE_CARD_IMAGE_URL_BY_FILE.get(filename) ?? null,
 );
 const UNICODE_CARD_IMAGE_CACHE = new Map<number, HTMLImageElement | null>();
 const UNICODE_CARD_IMAGE_LOADING = new Map<

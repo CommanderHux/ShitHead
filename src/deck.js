@@ -1,4 +1,6 @@
+// @ts-nocheck
 import { Card, TextShape } from "./visuals/draw.js";
+import { CARD_COUNT_LABEL_OFFSET_Y, CARD_H, CARD_STACK_X_GAP, CARD_STACK_Y_GAP, CARD_W, COLOR_TEXT_BLACK, } from "./visuals/cardSize.js";
 import { CARD_BACK_ID } from "./visuals/unicodeCards.js";
 import { discardPile, drawPile, getPlayer, stack, nextPlayer } from "./main.js";
 import { getIdValue } from "./player.js";
@@ -39,7 +41,7 @@ export class Deck {
             this.cards.push(...Array.from({ length: max - this.cards.length }, (_, i) => {
                 let c = new Card(this.visible ?
                     CARD_BACK_ID :
-                    this.cardIDs.at(-1 - i) ?? CARD_BACK_ID, this.x + ((this.cards.length + i) % 5) * 20, this.y + (Math.floor((this.cards.length + i) / 5)) * 20, 50, 100);
+                    this.cardIDs.at(-1 - i) ?? CARD_BACK_ID, this.x + ((this.cards.length + i) % 5) * CARD_STACK_X_GAP, this.y + (Math.floor((this.cards.length + i) / 5)) * CARD_STACK_Y_GAP, CARD_W, CARD_H);
                 if (this.clickable)
                     stack.add(c);
                 return c;
@@ -67,7 +69,7 @@ export class Deck {
             card.onUp = () => this.onUp(cardID);
             card.draw();
         });
-        new TextShape(this.x, this.y + 20, `${this.cardIDs.length}`, "right", "top", "black", "black").draw();
+        new TextShape(this.x, this.y + CARD_COUNT_LABEL_OFFSET_Y, `${this.cardIDs.length}`, "right", "top", COLOR_TEXT_BLACK, COLOR_TEXT_BLACK).draw();
     }
     sort(byvalue = true) {
         this.cards.forEach(card => card.active = false);

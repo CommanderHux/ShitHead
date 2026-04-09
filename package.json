@@ -1,0 +1,32 @@
+{
+  "name": "shithead",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CommanderHux/ShitHead.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/CommanderHux/ShitHead/issues"
+  },
+  "homepage": "https://github.com/CommanderHux/ShitHead#readme",
+  "dependencies": {
+    "netplayjs": "^0.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "vite": "^8.0.7"
+  }
+}

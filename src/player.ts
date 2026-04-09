@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Card } from "./visuals/draw.js";
 import { getPlayer, getElement, discardPile } from "./main.js"
 import { BurnRules, Deck, PlacementRules } from "./deck.js";

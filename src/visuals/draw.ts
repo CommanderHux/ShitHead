@@ -1,4 +1,5 @@
 import { canvas, context, stack } from "../main.js";
+import { CARD_H, CARD_SELECTED_OFFSET_Y, CARD_W } from "./cardSize.js";
 import {
   getCachedUnicodeCardImage,
 } from "./unicodeCards.js";
@@ -114,8 +115,8 @@ export class Card extends Rect {
     /** card ID */ public id: number,
     x: number,
     y: number,
-    w: number,
-    h: number,
+    w: number = CARD_W,
+    h: number = CARD_H,
     onDown: (...args: any) => any = () => { },
     onUp: (...args: any) => any = () => { },
   ) {
@@ -128,7 +129,13 @@ export class Card extends Rect {
     const unicodeCardImage = getCachedUnicodeCardImage(this.id);
 
     if (unicodeCardImage) {
-      context.drawImage(unicodeCardImage, this.x, this.active ? this.y : this.y + 10, this.w, this.h);
+      context.drawImage(
+        unicodeCardImage,
+        this.x,
+        this.active ? this.y : this.y + CARD_SELECTED_OFFSET_Y,
+        this.w,
+        this.h,
+      );
     }
   }
 }
